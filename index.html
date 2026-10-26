@@ -11,7 +11,7 @@ button:disabled{opacity:.5}.wrap{max-width:1180px;margin:auto;padding:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.card{background:#241632;border:1px solid #ffffff22;border-radius:16px;padding:14px;margin:12px 0}
 .tabs button{opacity:.7}.tabs button.on{opacity:1;outline:2px solid #fff}
 canvas{background:#100a18;border-radius:14px;max-width:100%;display:block}
-#game{width:960px;height:540px} #editorCanvas{width:640px;height:640px;cursor:crosshair}
+#game{width:960px;height:540px;image-rendering:pixelated;image-rendering:crisp-edges} #editorCanvas{width:640px;height:640px;cursor:crosshair}
 small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
 .feedCard{border:1px solid #ffffff22;border-radius:12px;padding:10px;margin:8px 0}
 #hud{font-weight:700;padding:8px}.err{color:#ffb3b3}.ok{color:#b7ffca}
@@ -141,46 +141,71 @@ let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)
 let musicTimer=null;function startMusic(){if(musicTimer)return;let scales={"Candy Kingdom":[523,587,659,784],"Sugar Dungeon":[220,261,293,329],"Berry Forest":[392,440,523,587],"Chocolate Vault":[196,220,261,293],"Lemon Sky":[587,659,784,880]};let i=0;musicTimer=setInterval(()=>{if($("musicOn").checked&&playing){let sc=scales[spec?.theme]||scales["Candy Kingdom"];beep(sc[i%4],.25,"triangle");if(i%2==0)beep(sc[0]/2,.3,"sine");i++}},420)}
 document.addEventListener("pointerdown",()=>startMusic(),{once:true});
 
-// ---------- procedural image sprites (drawn, no emoji characters) ----------
-function makeSprite(body,accent){
- const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
- x.fillStyle=body;x.beginPath();x.ellipse(64,70,46,42,0,0,7);x.fill();
- x.fillStyle=accent;for(let i=0;i<7;i++){x.beginPath();x.arc(30+((i*17)%70),38+((i*13)%60),4,0,7);x.fill()}
- x.fillStyle="#fff";x.beginPath();x.ellipse(48,66,12,16,0,0,7);x.ellipse(80,66,12,16,0,0,7);x.fill();
- x.fillStyle="#241632";x.beginPath();x.ellipse(48,68,6,9,0,0,7);x.ellipse(80,68,6,9,0,0,7);x.fill();
- x.fillStyle="#ffb3d1";x.beginPath();x.ellipse(34,82,10,6,0,0,7);x.ellipse(94,82,10,6,0,0,7);x.fill();
- x.strokeStyle="#241632";x.lineWidth=3;x.beginPath();x.arc(64,84,12,0.15*Math.PI,0.85*Math.PI);x.stroke();
- return c;
+// ---------- PSX kawaii textures + pixel sprites (v3, no emoji characters) ----------
+const BUF=document.createElement("canvas");BUF.width=320;BUF.height=240;
+const B=BUF.getContext("2d");B.imageSmoothingEnabled=false;
+function pixTex(draw){
+  const c=document.createElement("canvas");c.width=c.height=64;
+  const x=c.getContext("2d");draw(x);return c;
+}
+function rng(seed){return()=>{seed=(seed*9301+49297)%233280;return seed/233280}}
+const TEX_WALL=pixTex(x=>{
+  const r=rng(42);
+  x.fillStyle="#ff8fc0";x.fillRect(0,0,64,64);
+  for(let row=0;row<4;row++)for(let col=0;col<2;col++){
+    let off=row%2?16:0, bx=col*32+off-16, by=row*16;
+    x.fillStyle=["#ffa4c8","#ff7ab6","#ffb1d1"][Math.floor(r()*3)];
+    x.fillRect(bx+2,by+2,28,12);
+    x.fillStyle="#d94f8a";x.fillRect(bx+2,by+12,28,2);
+  }
+  x.fillStyle="#fff0f7";x.fillRect(0,0,64,6);
+  x.fillStyle="#fff";x.fillRect(0,6,64,2);
+  const cols=["#fff","#7be0d3","#ffd84d","#ff2f86","#9d7bff"];
+  for(let i=0;i<46;i++){x.fillStyle=cols[i%5];x.fillRect(Math.floor(r()*60),8+Math.floor(r()*52),3,1);}
+  for(let i=0;i<200;i++){if(r()>.7){x.fillStyle="#00000018";x.fillRect(Math.floor(r()*64),Math.floor(r()*64),1,1);}}
+});
+const TEX_CHOC=pixTex(x=>{
+  x.fillStyle="#7a4326";x.fillRect(0,0,64,64);
+  x.fillStyle="#a66a3f";x.fillRect(4,4,56,56);
+  x.strokeStyle="#5b2d18";x.lineWidth=3;x.strokeRect(4,4,56,56);
+  x.beginPath();x.moveTo(4,4);x.lineTo(60,60);x.moveTo(60,4);x.lineTo(4,60);x.stroke();
+  x.fillStyle="#ffd84d";x.fillRect(28,28,8,8);
+});
+const TEX_MINT=pixTex(x=>{
+  x.fillStyle="#5ed6c3";x.fillRect(0,0,64,64);
+  for(let i=-64;i<64;i+=16){x.fillStyle="#b8fff3";x.fillRect(i,0,7,64);x.fillStyle="#35a893";x.fillRect(i+7,0,2,64);}
+  x.fillStyle="#fff";for(let i=0;i<10;i++)x.fillRect(i*7,10+(i%3)*18,4,4);
+});
+const TEX_FLOOR=pixTex(x=>{
+  x.fillStyle="#6b3550";x.fillRect(0,0,64,64);
+  x.fillStyle="#7d4260";x.fillRect(0,0,32,32);x.fillRect(32,32,32,32);
+  x.fillStyle="#5b2a44";x.fillRect(32,0,32,32);x.fillRect(0,32,32,32);
+  const r=rng(9);for(let i=0;i<70;i++){x.fillStyle=["#ff8fc0","#ffd84d","#fff"][i%3];x.fillRect(Math.floor(r()*62),Math.floor(r()*62),2,1);}
+});
+const TEX_SKY=pixTex(x=>{
+  x.fillStyle="#2a1745";x.fillRect(0,0,64,64);
+  x.fillStyle="#fff";for(let i=0;i<24;i++)x.fillRect((i*17)%60,(i*23)%60,2,2);
+  x.fillStyle="#ff9ec7";x.fillRect(48,8,8,8);
+});
+function pixSprite(rows,pal){
+  const c=document.createElement("canvas");c.width=c.height=32;
+  const x=c.getContext("2d");
+  rows.forEach((row,j)=>[...row].forEach((ch,i)=>{if(pal[ch]){x.fillStyle=pal[ch];x.fillRect(i,j,1,1)}}));
+  const big=document.createElement("canvas");big.width=big.height=128;
+  const bx=big.getContext("2d");bx.imageSmoothingEnabled=false;bx.drawImage(c,0,0,128,128);
+  return big;
 }
 const SPRITES={
- "Sprinkle Imp":makeSprite("#ff7ab6","#fff"),
- "Custard Blob":makeSprite("#ffd84d","#ff7ab6"),
- "Mint Wraith":makeSprite("#7be0d3","#fff"),
- "Cocoa Knight":makeSprite("#a66a3f","#ffd84d")
+"Sprinkle Imp":pixSprite([
+"......KKKKKKKK......","....KKPPPPPPPPKK....","...KPPRRPPPPRRPPK...","..KPPPPPPPPPPPPPPK..","..KPWWKPPPPPPWWKPK..","..KPWEKPPPPPPWEKPK..","..KPPPPPPPPPPPPPPK..","..KPPPWWWWWWPPPPK...","...KPPPPPPPPPPK.....","....KKPPPPPPKK......","...KPPKPPPPKPPK.....","..KPPPKPPPPKPPPK....","..KPPPPPPPPPPPPK....","...KKKKKKKKKKKK....."],{K:"#2a1030",P:"#ff7ab6",W:"#ffffff",E:"#241632",R:"#ff2f86"}),
+"Custard Blob":pixSprite([
+"......KKKKKKKK......","....KKYYYYYYYYKK....","...KYYYYYYYYYYYYK...","..KYYWWKYYYYWWKYYK..","..KYYWEKYYYYWEKYYK..","..KYYYYYYYYYYYYYYK..","..KYPPYYYYYYPPYYYK..","..KYYYYWWWWYYYYYYK..","...KYYYYYYYYYYYK....","....KKKKKKKKKKK....."],{K:"#2a1030",Y:"#ffd84d",W:"#ffffff",E:"#241632",P:"#ff9ec7"}),
+"Mint Wraith":pixSprite([
+"......KKKKKKKK......","....KKMMMMMMMMKK....","...KMMMMMMMMMMMMK...","..KMWWKMMMMWWKMMK...","..KMWEKMMMMWEKMMK...","..KMMMMMMMMMMMMMK...","..KMMMKKKKKKMMMMK...","..KMMMMMMMMMMMMMK...","..KMKMMKMMKMMKMMK...","...K.K.K..K.K.K....."],{K:"#2a1030",M:"#7be0d3",W:"#ffffff",E:"#241632"}),
+"Cocoa Knight":pixSprite([
+".....KKGGGGGGKK.....","....KCCCCCCCCCCK....","...KCCWWKCCWWKCCK...","...KCCWEKCCWEKCCK...","...KCCCCCCCCCCCCK...","....KCCGGGGCCCK.....","...KCCCCCCCCCCCK....","..KCCKCCCCCCCCKCCK..","..KCCKCCCCCCCCKCCK..","...KKKKKKKKKKKK....."],{K:"#2a1030",C:"#a66a3f",W:"#ffffff",E:"#241632",G:"#ffd84d"})
 };
-function makePlayerSprite(){
- const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
- x.fillStyle="#ff9ec7";x.beginPath();x.arc(64,64,46,0,7);x.fill();
- x.fillStyle="#fff";x.beginPath();x.ellipse(48,60,12,16,0,0,7);x.ellipse(80,60,12,16,0,0,7);x.fill();
- x.fillStyle="#241632";x.beginPath();x.ellipse(48,62,6,9,0,0,7);x.ellipse(80,62,6,9,0,0,7);x.fill();
- x.fillStyle="#ffb3d1";x.beginPath();x.ellipse(34,76,10,6,0,0,7);x.ellipse(94,76,10,6,0,0,7);x.fill();
- return c;
-}
-const PLAYERSPRITE=makePlayerSprite();
-function makeWallTex(){
- const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
- x.fillStyle="#ff9ec7";x.fillRect(0,0,128,128);
- x.fillStyle="#ffc7dd";x.fillRect(0,0,128,22);x.fillRect(0,64,128,10);
- ["#fff","#7be0d3","#ffd84d","#ff5fa2"].forEach((col,i)=>{
-   x.fillStyle=col;
-   for(let j=0;j<8;j++)x.fillRect(10+j*14,18+((j*23+i*11)%90),8,3)
- });
- // drawn cake slice, no emoji
- x.fillStyle="#fff";x.fillRect(48,84,32,28);x.fillStyle="#ff5fa2";x.fillRect(48,84,32,10);x.fillStyle="#ffd84d";x.beginPath();x.arc(64,78,8,0,7);x.fill();
- return c;
-}
-const WALLTEX=makeWallTex();
-
+const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
 function loadSpec(s,src,promptText){spec=repair(s);let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
@@ -204,11 +229,56 @@ function draw(){if(!spec||!G)return;let e=spec.engine;if(e==="3d"){if(!draw3D())
 if(e!=="3d")$("hud").textContent=hudText()}
 function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
-function drawFPS(){let w=cv.width,h=cv.height;ctx.fillStyle="#ffe6f2";ctx.fillRect(0,0,w,h/2);let grd=ctx.createLinearGradient(0,h/2,0,h);grd.addColorStop(0,"#ff8fbf");grd.addColorStop(1,"#5b2a4a");ctx.fillStyle=grd;ctx.fillRect(0,h/2,w,h/2);
-for(let i=0;i<40;i++){ctx.fillStyle="#ffffff55";ctx.fillRect((i*97)%w,h/2+30+(i*53)%(h/2-30),4,4)}
-for(let col=0;col<w;col+=4){let a=G.angle-0.55+ (col/w)*1.1,d=0,x=G.px,y=G.py,dx=Math.cos(a),dy=Math.sin(a);while(d<20){x+=dx*.05;y+=dy*.05;d+=.05;if(wall(x,y))break}let wh=h/(d+.001);ctx.drawImage(WALLTEX,(col/w)*128,0,2,128,col,h/2-wh/2,4,wh)}
-spritesFPS()}
-function spritesFPS(){let t=Date.now()/300;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(e.x-G.px,e.y-G.py),a=Math.atan2(e.y-G.py,e.x-G.px)-G.angle;if(Math.abs(a)<.7&&d>0.3){let x=cv.width/2+Math.tan(a)*500,y=cv.height/2+Math.sin(t+e.pat)*4/Math.max(1,d),s=120/d*(e.boss?1.8:1);let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,x-s/2,y-s/2,s,s);if(e.boss){ctx.fillStyle="#ffe45e";ctx.font="20px serif";ctx.fillText("★",x-10,y-s/2)}}});spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});}
+function drawFPS(){
+  const w=320,h=240;
+  for(let y=0;y<h/2;y+=4){B.drawImage(TEX_SKY,0,0,64,4,0,y,w,4);}
+  for(let y=h/2;y<h;y+=4){let p=(y-h/2)/(h/2);B.fillStyle=p<.3?"#7d4260":"#5b2a44";B.fillRect(0,y,w,4);B.drawImage(TEX_FLOOR,0,0,64,4,0,y,w,4);}
+  const snap=v=>Math.round(v*24)/24;
+  const px=snap(G.px),py=snap(G.py);
+  for(let col=0;col<w;col++){
+    let a=G.angle-0.62+(col/w)*1.24;
+    let dx=Math.cos(a),dy=Math.sin(a),d=0,x=px,y=py,side=0;
+    while(d<18){x+=dx*.03;y+=dy*.03;d+=.03;if(wall(x,y)){side=Math.abs(x-Math.round(x))>Math.abs(y-Math.round(y))?1:0;break}}
+    let correct=d*Math.cos(a-G.angle);
+    let wh=Math.min(h*1.4,h/(correct+.001));
+    let tex=((side?y:x)%1+1)%1;
+    let texImg=((Math.floor(x)+Math.floor(y))%7==0)?TEX_CHOC:((Math.floor(x)+Math.floor(y))%3==0?TEX_MINT:TEX_WALL);
+    B.drawImage(texImg,Math.floor(tex*64),0,1,64,col,h/2-wh/2,1,wh);
+    let fog=Math.min(.75,correct/16);
+    B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
+    if(side){B.fillStyle="rgba(0,0,0,.22)";B.fillRect(col,h/2-wh/2,1,wh);}
+  }
+  drawSpritesPSX(B,w,h);
+  ctx.imageSmoothingEnabled=false;
+  ctx.clearRect(0,0,960,540);ctx.drawImage(BUF,0,0,960,540);
+  drawWeapon();
+}
+function drawSpritesPSX(B,w,h){
+  let list=[...G.active.filter(e=>e.alive).map(e=>({t:"e",o:e,d:Math.hypot(e.x-G.px,e.y-G.py)})),
+            ...spec.npcs.map(n=>({t:"n",o:n,d:Math.hypot(n.x-G.px,n.y-G.py)}))].sort((a,b)=>b.d-a.d);
+  list.forEach(({t,o,d})=>{
+    let ang=Math.atan2(o.y-G.py,o.x-G.px)-G.angle;
+    while(ang>Math.PI)ang-=Math.PI*2;while(ang<-Math.PI)ang+=Math.PI*2;
+    if(Math.abs(ang)>.75||d<.3)return;
+    let s=Math.min(180,150/d*(o.boss?1.9:1));
+    let sx=w/2+Math.tan(ang)*(w/.9)-s/2;
+    let bob=Math.sin(Date.now()/180+o.x)* (3/Math.max(1,d));
+    let sy=h/2-s/2+10+bob;
+    if(t==="e"){B.drawImage(SPRITES[o.type]||SPRITES["Sprinkle Imp"],sx,sy,s,s);if(o.boss){B.fillStyle="#ffd84d";B.fillRect(sx+s*.38,sy-8,s*.24,8);}}
+    else{B.drawImage(SPRITES["Custard Blob"],sx,sy,s*.8,s*.8);B.fillStyle="#fff";B.fillRect(sx,sy-12,s,8);B.fillStyle="#241632";B.font="6px monospace";B.fillText(o.name,sx+2,sy-5);}
+    if(t==="e"&&o.hp<5){B.fillStyle="#ff2f86";B.fillRect(sx,sy-4,s*(o.hp/5),3);}
+  });
+  spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
+}
+function drawWeapon(){
+  let sway=Math.sin(Date.now()/220)*8;
+  ctx.save();ctx.translate(480+sway,470+Math.abs(Math.sin(Date.now()/220))*5);
+  ctx.rotate(-.25);ctx.fillStyle="#fff";ctx.fillRect(-6,-70,12,90);
+  let g=ctx.createRadialGradient(0,-95,4,0,-95,48);g.addColorStop(0,"#fff");g.addColorStop(.4,"#ff7ab6");g.addColorStop(.75,"#ff2f86");g.addColorStop(1,"#b3125f");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,-95,48,0,7);ctx.fill();
+  ctx.strokeStyle="#fff";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-95,30,0,7);ctx.stroke();
+  ctx.restore();
+}
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(PLAYERSPRITE,n.x*tw,n.y*th,tw,th));ctx.drawImage(PLAYERSPRITE,G.px*tw-8,G.py*th,tw,th)}
 function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*ts-cam,e.y*ts+bob,ts,ts)}});ctx.drawImage(PLAYERSPRITE,G.px*ts-cam,G.py*ts,ts,ts)}
