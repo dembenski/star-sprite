@@ -62,9 +62,62 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <input id="gizmoPrompt" size="55" placeholder="pink candy castle, maze left, boss arena right, forest entrance">
 <button id="gizmoGo">Create with Gizmo</button>
 <button class="alt" id="gizmoDownload">Download Blender .py</button>
+<button class="alt" id="gizmoExporter">Download Blender EXPORTER .py</button>
 </div>
 <textarea id="gizmoPy" rows="8" cols="70" placeholder="Blender Python will appear here..."></textarea>
 <div id="gizmoStatus"></div>
+<h4>Import From Blender (back into the game)</h4>
+<p><small>1. In Blender, run star-sprite-exporter.py. 2. Drag the exported .ss.json OR a .obj file ONTO the game. 3. It spawns 2 tiles in front of the player, auto-selected. 4. In Advanced &gt; Model Studio: recolor it, give it a generated texture, upload a texture, or paint it yourself.</small></p>
+<div class="row">
+<input type="file" id="modelFile" accept=".ss.json,.json,.obj,.png,.jpg,.jpeg">
+<button id="importBtn">Import &amp; Place In Game</button>
+</div>
+<p><small>Or just drag &amp; drop the file onto the game screen. .obj = geometry. .png/.jpg dropped after = its texture.</small></p>
+<div id="importStatus"></div>
+<p><small>Share link saves WHERE the model sits. Re-drop the same Blender file and it will snap back onto that spot.</small></p>
+</div>
+<div class="card" id="modelStudio">
+<h3>Model Studio - Paint / Texture / Color</h3>
+<div class="row">
+<select id="propSelect"><option value="">Select placed model...</option></select>
+<button class="alt" data-place="front">Place: In Front Of Me</button>
+<button class="alt" data-place="player">Place: At Player Start</button>
+<button class="alt" data-place="goal">Place: At Goal</button>
+<button class="alt" data-place="center">Place: Map Center</button>
+</div>
+<div class="row">
+<b>Move:</b>
+<button class="alt" onclick="nudgeProp(0,-1)">Up</button>
+<button class="alt" onclick="nudgeProp(-1,0)">Left</button>
+<button class="alt" onclick="nudgeProp(1,0)">Right</button>
+<button class="alt" onclick="nudgeProp(0,1)">Down</button>
+<label>Size <input type="range" id="propScale" min="0.3" max="3" step="0.1" value="1"></label>
+<label>Rotate <input type="range" id="propRot" min="0" max="360" value="0"></label>
+<button class="alt" id="propDelete">Delete model</button>
+</div>
+<h4>1. Solid Colors</h4>
+<div class="row" id="colorRow"></div>
+<h4>2. Generated Textures (free, procedural)</h4>
+<div class="row">
+<button class="alt" data-tex="cake">Cake Brick</button>
+<button class="alt" data-tex="choc">Chocolate</button>
+<button class="alt" data-tex="mint">Mint Stripe</button>
+<button class="alt" data-tex="sprinkle">Sprinkles</button>
+<button class="alt" data-tex="checker">Kawaii Checker</button>
+<button class="alt" data-tex="stars">Stars</button>
+</div>
+<h4>3. Upload Your Own Texture</h4>
+<input type="file" id="texFile" accept="image/*">
+<h4>4. Paint The Model Yourself</h4>
+<p><small>Paint here - this painting becomes the model's skin in-game.</small></p>
+<div class="row">
+<input type="color" id="paintColor" value="#ff2f86">
+<label>Brush <input type="range" id="paintSize" min="2" max="40" value="10"></label>
+<button class="alt" id="paintClear">Clear</button>
+<button id="paintApply">Apply Painting To Model</button>
+<button class="alt" id="paintWall">Apply Painting To Walls</button>
+</div>
+<canvas id="paintCanvas" width="256" height="256" style="width:256px;height:256px;background:#fff;cursor:crosshair"></canvas>
 </div>
 <h3>Hand editor — edits the spec only; art carries over</h3>
 <div class="row"><select id="tool"><option value="#">Wall</option><option value=".">Floor</option><option value="D">Locked door</option><option value="P">Player start</option><option value="G">Goal exit</option><option value="E">Enemy (type picker)</option><option value="*">Pickup</option><option value="N">NPC</option><option value="er">Eraser</option><option value="sk">Sketch</option></select>
@@ -107,7 +160,7 @@ const isTouch=matchMedia("(pointer:coarse)").matches&&'ontouchstart'in window; i
 function blankMap(w,h){let m=[];for(let y=0;y<h;y++){let r=[];for(let x=0;x<w;x++)r.push(x==0||y==0||x==w-1||y==h-1?"#":".");m.push(r)}return m}
 function demoSpec(){let m=blankMap(20,14);[[3,3],[4,3],[5,3],[8,5],[11,3],[12,8],[6,9],[15,5],[17,9],[9,11]].forEach(([x,y])=>m[y][x]="#");m[1][1]="P";m[12][18]="G";
 return{title:"Cupcake Rescue — Demo",theme:THEMES[0],engine:"fps",difficulty:"Normal",boss:false,quest:"★ WOW DEMO: Rescue the Lemon Star! 3-at-a-time waves, boss at the goal!",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:18,y:12},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3},{x:14,y:3,type:ROSTER[2],hp:2},{x:5,y:10,type:ROSTER[3],hp:3},{x:12,y:10,type:ROSTER[0],hp:2},{x:16,y:6,type:ROSTER[1],hp:3},{x:8,y:6,type:ROSTER[2],hp:2},{x:3,y:11,type:ROSTER[3],hp:3},{x:17,y:12,type:"Cocoa Knight",hp:18,boss:true}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"},{x:15,y:10,kind:"treat"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2},{id:"n2",name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler! Waves come three at a time.",x:9,y:2},{id:"n3",name:"Berry",persona:"brave scout",greeting:"The boss guards the goal. You can do this!",x:14,y:11}]}}
-function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];return s}
+function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];s.props=s.props||[];return s}
 function find(s,c){for(let y=0;y<s.map.length;y++)for(let x=0;x<s.map[y].length;x++)if(s.map[y][x]==c)return{x,y};return null}
 function repair(s){s=normalize(JSON.parse(JSON.stringify(s)));let h=s.map.length,w=s.map[0].length;
 for(let x=0;x<w;x++){s.map[0][x]="#";s.map[h-1][x]="#"}for(let y=0;y<h;y++){s.map[y][0]="#";s.map[y][w-1]="#"}
@@ -208,7 +261,7 @@ const SPRITES={
 const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
-function loadSpec(s,src,promptText){spec=repair(s);let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
+function loadSpec(s,src,promptText){spec=repair(s);if(typeof refreshPropSelect==="function")refreshPropSelect();let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
 spec.map=spec.map.map(r=>r.join(""));$("specBox").value=JSON.stringify(spec,null,1);$("quest").textContent="Quest: "+(spec.quest||"Reach ★");drawEditor();resetGame();showBest()}
 function resetGame(){normalize(spec);let p=spec.playerStart;let allE=spec.enemies.map(e=>({...e,alive:true,pat:Math.random()*6.28}));G={px:p.x+.5,py:p.y+.5,vx:0,vy:0,angle:0,hp:100,ammo:30,kills:0,start:Date.now(),onGround:false,enemies:allE,active:allE.slice(0,3),queue:allE.slice(3),pickups:spec.pickups.map(e=>({...e,taken:false})),won:false};playing=true}
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
@@ -248,9 +301,11 @@ function drawFPS(){
     // Coherent walls: pink cake everywhere, chocolate only near the goal
     // (boss area). The old %7/%3 patchwork made every 3rd/7th tile a
     // different colour, which is why the walls looked random and weird.
-    let gx=spec.goal?spec.goal[0]:-99, gy=spec.goal?spec.goal[1]:-99;
-    let texImg=(Math.abs(Math.floor(x)-gx)<=2&&Math.abs(Math.floor(y)-gy)<=2)?TEX_CHOC:TEX_WALL;
-    B.drawImage(texImg,Math.floor(tex*64),0,1,64,col,h/2-wh/2,1,wh);
+    let gx=spec.goal?spec.goal.x:-99, gy=spec.goal?spec.goal.y:-99;
+    let texImg,texW=64;
+    if(window.CUSTOM_WALL){texImg=window.CUSTOM_WALL;texW=256;}
+    else texImg=(Math.abs(Math.floor(x)-gx)<=2&&Math.abs(Math.floor(y)-gy)<=2)?TEX_CHOC:TEX_WALL;
+    B.drawImage(texImg,Math.floor(tex*texW),0,1,texW,col,h/2-wh/2,1,wh);
     let fog=Math.min(.75,correct/16);
     B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
     if(side){B.fillStyle="rgba(0,0,0,.22)";B.fillRect(col,h/2-wh/2,1,wh);}
@@ -275,6 +330,7 @@ function drawSpritesPSX(B,w,h){
     else{B.drawImage(SPRITES["Custard Blob"],sx,sy,s*.8,s*.8);B.fillStyle="#fff";B.fillRect(sx,sy-12,s,8);B.fillStyle="#241632";B.font="6px monospace";B.fillText(o.name,sx+2,sy-5);}
     if(t==="e"&&o.hp<5){B.fillStyle="#ff2f86";B.fillRect(sx,sy-4,s*(o.hp/5),3);}
   });
+  drawPropsBillboard(B,w,h);
   spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
 }
 function drawWeapon(){
@@ -293,8 +349,8 @@ function drawWeapon(){
   ctx.restore();
 }
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
-G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(PLAYERSPRITE,n.x*tw,n.y*th,tw,th));ctx.drawImage(PLAYERSPRITE,G.px*tw-8,G.py*th,tw,th)}
-function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*ts-cam,e.y*ts+bob,ts,ts)}});ctx.drawImage(PLAYERSPRITE,G.px*ts-cam,G.py*ts,ts,ts)}
+G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(PLAYERSPRITE,n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(PLAYERSPRITE,G.px*tw-8,G.py*th,tw,th)}
+function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(PLAYERSPRITE,G.px*ts-cam,G.py*ts,ts,ts)}
 // True 3D — raw WebGL, no libraries
 let gl=cv.getContext("webgl",{failIfMajorPerformanceCaveat:false})||null,glProg=null;
 function initGL(){if(!gl)return false;let vs=`attribute vec3 p;attribute vec3 c;varying vec3 v;uniform mat4 m;void main(){v=c;gl_Position=m*vec4(p,1.);}`,fs=`precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.);}`;
@@ -327,7 +383,7 @@ window.playFeed=i=>loadSpec(feed[i].spec,"feed",feed[i].prompt);window.copyFeed=
 window.exportFeed=i=>{let blob=new Blob(['<!DOCTYPE html><html><head><meta charset=utf-8><title>'+feed[i].title+'</title></head><body><script>location.href='+JSON.stringify(location.href.split("#")[0])+'+"#level="+'+JSON.stringify(btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec)))))+'<\/script>Standalone export — opens the full engine with this level.</body></html>'],{type:"text/html"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="star-sprite-level.html";a.click()};
 // ---------- editor ----------
 let ec=$("editorCanvas"),ectx=ec.getContext("2d");function snapshot(){undoS.push(JSON.stringify(spec));redoS=[]}
-function drawEditor(){if(!spec)return;normalize(spec);let s=640/Math.max(spec.map.length,spec.map[0].length);ectx.fillStyle="#180f24";ectx.fillRect(0,0,640,640);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ectx.fillStyle=c==="#"?"#ff7ab6":c==="G"?"#ffe45e":c==="D"?"#a66a3f":"#332040";ectx.fillRect(x*s,y*s,s-1,s-1);if(c==="P"||c==="G")ectx.fillText(c,x*s+4,y*s+14)}));spec.enemies.forEach(e=>ectx.fillText("E",e.x*s+4,e.y*s+14));spec.npcs.forEach(n=>ectx.fillText("N",n.x*s+4,n.y*s+14));$("specBox").value=JSON.stringify(spec,null,1)}
+function drawEditor(){if(!spec)return;normalize(spec);let s=640/Math.max(spec.map.length,spec.map[0].length);ectx.fillStyle="#180f24";ectx.fillRect(0,0,640,640);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ectx.fillStyle=c==="#"?"#ff7ab6":c==="G"?"#ffe45e":c==="D"?"#a66a3f":"#332040";ectx.fillRect(x*s,y*s,s-1,s-1);if(c==="P"||c==="G")ectx.fillText(c,x*s+4,y*s+14)}));spec.enemies.forEach(e=>ectx.fillText("E",e.x*s+4,e.y*s+14));spec.npcs.forEach(n=>ectx.fillText("N",n.x*s+4,n.y*s+14));(spec.props||[]).forEach(p=>{ectx.fillStyle="#ffd84d";ectx.fillText("M",p.x*s+4,p.y*s+14)});$("specBox").value=JSON.stringify(spec,null,1)}
 ec.addEventListener("pointerdown",e=>{snapshot();let s=640/Math.max(spec.map.length,spec.map[0].length),x=Math.floor(e.offsetX/s),y=Math.floor(e.offsetY/s),b=+$("brush").value,t=$("tool").value;
 for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){let nx=x+dx,ny=y+dy;if(!spec.map[ny]||spec.map[ny][nx]===undefined)continue;
 if(t==="E"){spec.enemies.push({x:nx,y:ny,type:$("etype").value,hp:3})}else if(t==="*"){spec.pickups.push({x:nx,y:ny,kind:"treat"})}else if(t==="N"){spec.npcs.push({id:"n"+Date.now(),name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler!",x:nx,y:ny})}else if(t==="er"){spec.map[ny][nx]=".";spec.enemies=spec.enemies.filter(en=>!(en.x===nx&&en.y===ny))}else spec.map[ny][nx]=t==="sk"?(Math.random()<.5?"#":"."):t}
@@ -404,6 +460,153 @@ let _gd=$("gizmoDownload");if(_gd)_gd.onclick=()=>{
  a.href=URL.createObjectURL(new Blob([lastBlenderPy],{type:"text/x-python"}));
  a.download="star-sprite-blender.py";
  a.click();
+};
+
+
+// ---------- Star Sprite v4: Blender import + Model Studio ----------
+let MODELS={};
+let selectedProp=null;
+function registerModel(id,data){MODELS[id]=data;if(!data.texture){data.texture=makeGeneratedTexture("cake");}}
+function placeProp(modelId){
+  normalize(spec);
+  let gx=Math.floor(G?G.px:spec.playerStart.x), gy=Math.floor(G?G.py:spec.playerStart.y);
+  let spots=[[gx+2,gy],[gx,gy+2],[gx-2,gy],[gx,gy-2],[spec.playerStart.x+1,spec.playerStart.y],[spec.goal.x-1,spec.goal.y]];
+  let spot=spots.find(([x,y])=>spec.map[y] && spec.map[y][x]===".") || [spec.playerStart.x+1,spec.playerStart.y];
+  let prop={id:"p"+Date.now(), model:modelId, x:spot[0], y:spot[1], scale:1, rot:0, color:"#ff7ab6"};
+  spec.props.push(prop); selectedProp=prop;
+  refreshPropSelect(); drawEditor();
+  if($("importStatus"))$("importStatus").textContent="Placed '"+modelId+"' in game at "+spot+" - press Play!";
+  return prop;
+}
+function parseOBJ(text,name){
+  let verts=[],faces=[];
+  text.split("\n").forEach(l=>{
+    let p=l.trim().split(/\s+/);
+    if(p[0]==="v") verts.push([+p[1],+p[2],+p[3]]);
+    if(p[0]==="f") faces.push(p.slice(1).map(f=>parseInt(f.split("/")[0])-1));
+  });
+  return {name,verts,faces,color:[1,0.48,0.71]};
+}
+async function importFile(file){
+  if(!file) return;
+  let ext=file.name.split(".").pop().toLowerCase();
+  if(ext==="png"||ext==="jpg"||ext==="jpeg"){
+    let img=new Image(); img.src=URL.createObjectURL(file);
+    img.onload=()=>{ if(selectedProp){MODELS[selectedProp.model].texture=img; if($("importStatus"))$("importStatus").textContent="Texture applied!";}
+      else { registerModel(file.name,{name:file.name,verts:[],faces:[],billboard:img,texture:img}); placeProp(file.name);} draw(); };
+    return;
+  }
+  let text=await file.text();
+  let id=file.name.replace(/\W/g,"_");
+  if(ext==="obj"){ registerModel(id,parseOBJ(text,file.name)); }
+  else {
+    let j=JSON.parse(text);
+    if(j.type!=="star-sprite-model") throw new Error("Not a Star Sprite Blender export");
+    let verts=[],faces=[],off=0;
+    j.meshes.forEach(m=>{ m.faces.forEach(f=>faces.push(f.map(i=>i+off))); verts.push(...m.verts); off+=m.verts.length; });
+    registerModel(id,{name:j.name,verts,faces,color:j.meshes[0]?.color||[1,.5,.8]});
+  }
+  placeProp(id);
+}
+let _ib=$("importBtn"); if(_ib)_ib.onclick=()=>importFile($("modelFile").files[0]).catch(e=>{if($("importStatus"))$("importStatus").textContent="Import failed: "+e.message+" - level unchanged.";});
+let _mf=$("modelFile"); if(_mf)_mf.onchange=e=>importFile(e.target.files[0]);
+let _cv=$("game"); if(_cv){_cv.addEventListener("dragover",e=>e.preventDefault());_cv.addEventListener("drop",e=>{e.preventDefault(); importFile(e.dataTransfer.files[0]);});}
+window.nudgeProp=(dx,dy)=>{if(!selectedProp)return; let nx=selectedProp.x+dx,ny=selectedProp.y+dy;
+  if(spec.map[ny]&&spec.map[ny][nx]==="."){selectedProp.x=nx;selectedProp.y=ny;drawEditor();}};
+let _ps=$("propScale"); if(_ps)_ps.oninput=e=>{if(selectedProp)selectedProp.scale=+e.target.value};
+let _pr=$("propRot"); if(_pr)_pr.oninput=e=>{if(selectedProp)selectedProp.rot=+e.target.value};
+let _pd=$("propDelete"); if(_pd)_pd.onclick=()=>{spec.props=spec.props.filter(p=>p!==selectedProp);selectedProp=null;refreshPropSelect();drawEditor();};
+document.querySelectorAll("[data-place]").forEach(b=>b.onclick=()=>{
+  if(!selectedProp)return;
+  if(b.dataset.place==="front")return placeProp(selectedProp.model);
+  let t=b.dataset.place==="player"?spec.playerStart:b.dataset.place==="goal"?spec.goal:{x:spec.map[0].length>>1,y:spec.map.length>>1};
+  selectedProp.x=t.x;selectedProp.y=t.y;drawEditor();});
+function refreshPropSelect(){
+  let sel=$("propSelect"); if(!sel) return;
+  sel.innerHTML=(spec.props||[]).map((p,i)=>`<option value="${i}">${p.model} @ ${p.x},${p.y}</option>`).join("");
+  if(spec.props&&spec.props.length) selectedProp=spec.props[+(sel.value||0)];
+}
+let _psel=$("propSelect"); if(_psel)_psel.onchange=e=>selectedProp=spec.props[+e.target.value];
+function makeGeneratedTexture(kind){
+  const map={cake:()=>TEX_WALL,choc:()=>TEX_CHOC,mint:()=>TEX_MINT};
+  if(map[kind]) return map[kind]();
+  const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
+  if(kind==="sprinkle"){x.fillStyle="#ff9ec7";x.fillRect(0,0,128,128);["#fff","#ffd84d","#7be0d3","#ff2f86"].forEach((col,i)=>{x.fillStyle=col;for(let j=0;j<20;j++)x.fillRect(Math.random()*120,Math.random()*120,8,3)});}
+  if(kind==="checker"){for(let i=0;i<8;i++)for(let j=0;j<8;j++){x.fillStyle=(i+j)%2?"#ff7ab6":"#fff0f7";x.fillRect(i*16,j*16,16,16)}}
+  if(kind==="stars"){x.fillStyle="#2a1745";x.fillRect(0,0,128,128);x.fillStyle="#ffd84d";for(let i=0;i<20;i++)x.fillText("★",Math.random()*110,Math.random()*110);}
+  return c;
+}
+["#ff7ab6","#ffd84d","#7be0d3","#a66a3f","#ff2f86","#9d7bff","#ffffff","#241632"].forEach(col=>{
+  let row=$("colorRow"); if(!row) return;
+  let b=document.createElement("button");b.style.background=col;b.textContent="■";b.style.color=col;
+  b.onclick=()=>{if(selectedProp){selectedProp.color=col; let m=MODELS[selectedProp.model]; if(m){let c=makeGeneratedTexture("checker");let x=c.getContext("2d");x.globalAlpha=.85;x.fillStyle=col;x.fillRect(0,0,128,128);m.texture=c;}}};
+  row.appendChild(b);
+});
+document.querySelectorAll("[data-tex]").forEach(b=>b.onclick=()=>{
+  if(!selectedProp)return alert("Import / select a model first");
+  MODELS[selectedProp.model].texture=makeGeneratedTexture(b.dataset.tex);
+  if($("importStatus"))$("importStatus").textContent="Generated texture '"+b.dataset.tex+"' applied!";
+});
+let _tf=$("texFile"); if(_tf)_tf.onchange=e=>{
+  let img=new Image(); img.src=URL.createObjectURL(e.target.files[0]);
+  img.onload=()=>{if(selectedProp)MODELS[selectedProp.model].texture=img;};
+};
+let pc=$("paintCanvas"),px=pc?pc.getContext("2d"):null,painting=false;
+if(pc&&px){px.fillStyle="#ff9ec7";px.fillRect(0,0,256,256);
+pc.onpointerdown=e=>{painting=true;paintAt(e)};pc.onpointerup=()=>painting=false;pc.onpointermove=e=>painting&&paintAt(e);}
+function paintAt(e){let r=pc.getBoundingClientRect();px.fillStyle=$("paintColor").value;px.beginPath();px.arc(e.clientX-r.left,e.clientY-r.top,+$("paintSize").value/2,0,7);px.fill();}
+let _pcl=$("paintClear"); if(_pcl)_pcl.onclick=()=>{px.fillStyle="#ff9ec7";px.fillRect(0,0,256,256)};
+let _pa=$("paintApply"); if(_pa)_pa.onclick=()=>{if(!selectedProp)return alert("Select a model first");
+  let copy=document.createElement("canvas");copy.width=copy.height=256;copy.getContext("2d").drawImage(pc,0,0);
+  MODELS[selectedProp.model].texture=copy; if($("importStatus"))$("importStatus").textContent="Your painting is now the model's skin! Press Play.";};
+let _pw=$("paintWall"); if(_pw)_pw.onclick=()=>{
+  window.CUSTOM_WALL=pc; if($("importStatus"))$("importStatus").textContent="Your painting will be used on walls - press Play.";};
+function drawPropsBillboard(B,w,h){
+  (spec.props||[]).forEach(p=>{
+    let m=MODELS[p.model]; if(!m) return;
+    let d=Math.hypot(p.x+.5-G.px,p.y+.5-G.py);
+    let ang=Math.atan2(p.y+.5-G.py,p.x+.5-G.px)-G.angle;
+    while(ang>Math.PI)ang-=Math.PI*2;while(ang<-Math.PI)ang+=Math.PI*2;
+    if(Math.abs(ang)>.8||d<.4)return;
+    let s=Math.min(200,(140/d))*(p.scale||1);
+    let sx=w/2+Math.tan(ang)*(w/.9)-s/2, sy=h/2-s/2+12;
+    B.save();B.translate(sx+s/2,sy+s/2);B.rotate((p.rot||0)*Math.PI/180*.1);B.translate(-s/2,-s/2);
+    if(m.texture) B.drawImage(m.texture,0,0,s,s);
+    else if(m.billboard) B.drawImage(m.billboard,0,0,s,s);
+    else {B.fillStyle=p.color||"#ff7ab6";B.fillRect(0,0,s,s);}
+    B.restore();
+    B.fillStyle="#fff";B.font="7px monospace";B.fillText(p.model.replace(/_/g," ").slice(0,18),sx,sy-4);
+  });
+}
+// Blender EXPORTER download (Star Sprite version)
+let _ge=$("gizmoExporter"); if(_ge)_ge.onclick=()=>{
+ let py=`import bpy, json, os
+filepath = os.path.join(os.path.expanduser("~"), "Downloads", "my-model.ss.json")
+data={"type":"star-sprite-model","name":bpy.context.active_object.name if bpy.context.active_object else "BlenderModel","meshes":[]}
+for obj in bpy.context.scene.objects:
+ if obj.type!="MESH": continue
+ verts=[]
+ for v in obj.data.vertices:
+   w=obj.matrix_world @ v.co
+   verts.append([round(w.x,3),round(-w.z,3),round(w.y,3)])
+ faces=[[v for v in p.vertices] for p in obj.data.polygons]
+ col=[1,0.5,0.8]
+ if obj.data.materials and obj.data.materials[0]:
+   try: col=list(obj.data.materials[0].diffuse_color)[:3]
+   except: pass
+ uvs=[]
+ try:
+   uv=obj.data.uv_layers.active.data
+   uvs=[[round(uv[i].uv.x,3),round(uv[i].uv.y,3)] for i in range(len(uv))]
+ except: uvs=[]
+ data["meshes"].append({"name":obj.name,"verts":verts,"faces":faces,"color":col,"uvs":uvs,
+   "location":list(obj.location),"scale":list(obj.scale)})
+with open(filepath,"w") as f: json.dump(data,f)
+print("EXPORTED TO:",filepath)
+`;
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([py],{type:"text/x-python"}));
+ a.download="star-sprite-exporter.py";a.click();
 };
 
 // ---------- main buttons ----------
