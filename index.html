@@ -378,7 +378,7 @@ $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");se
 // ---------- feed / share / export ----------
 function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>`<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button></div>`).join("")||"No levels yet."}
 function specHash(s){let m=s.map.map(r=>Array.isArray(r)?r.join(""):r);return btoa(unescape(encodeURIComponent(JSON.stringify(m)+s.title))).slice(0,80)}
-function renderFeedAdd(prompt,src){if(!spec)return;let h=specHash(spec);feed=feed.filter(f=>f.hash!==h);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
+function renderFeedAdd(prompt,src){if(!spec)return;let h=specHash(spec);feed=feed.filter(f=>f.hash!==h&&f.title!==spec.title);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
 window.playFeed=i=>loadSpec(feed[i].spec,"feed",feed[i].prompt);window.copyFeed=i=>{let s=btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec))));navigator.clipboard.writeText(location.href.split("#")[0]+"#level="+s);alert("Share link copied")};
 window.exportFeed=i=>{let blob=new Blob(['<!DOCTYPE html><html><head><meta charset=utf-8><title>'+feed[i].title+'</title></head><body><script>location.href='+JSON.stringify(location.href.split("#")[0])+'+"#level="+'+JSON.stringify(btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec)))))+'<\/script>Standalone export — opens the full engine with this level.</body></html>'],{type:"text/html"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="star-sprite-level.html";a.click()};
 // ---------- editor ----------
@@ -615,6 +615,12 @@ $("instant").onclick=()=>{loadSpec(genInstant($("prompt").value,$("engineSel").v
 $("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};$("shuffle").onclick=()=>{let t=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];$("prompt").value=t[Math.random()*t.length|0]};
 // shared-link boot
 try{if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
+// One demo only: clean old duplicates already saved in this browser.
+// Old v1 demo cards have a different map/hash than the v2 WOW demo, so
+// hash-only dedupe never removed them. Title dedupe collapses them.
+(function cleanFeed(){let seenT=new Set(),seenH=new Set(),before=feed.length;
+feed=feed.filter(f=>{if(seenT.has(f.title)||(f.hash&&seenH.has(f.hash)))return false;seenT.add(f.title);if(f.hash)seenH.add(f.hash);return true;});
+if(feed.length!==before)localStorage.setItem("ff_feed",JSON.stringify(feed));})();
 renderFeed();
 </script></body></html>
 <!-- SELF-TEST AT END OF FILE: fresh-eyes check done — home page, Bit chat panel, and generated games use original Michael Dembenski & Bit identity, original layout/wording, no competitor names/templates. Demo video must be captured separately showing Meta generation. -->
