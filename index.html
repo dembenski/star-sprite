@@ -24,6 +24,10 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 #crosshair .lol{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#ff7ab6 55%,#ff2f86);border:2px solid #fff;box-shadow:0 2px 8px #000}
 #crosshair .stick{width:6px;height:26px;background:#fff;margin:0 auto;box-shadow:0 2px 8px #000}
 #shootBtn{position:absolute;right:18px;bottom:18px;width:92px;height:92px;border-radius:50%;font-size:18px;z-index:4;background:#ff2f86;box-shadow:0 6px 20px #0008;color:#fff;font-weight:700;border:0;cursor:pointer}
+#weaponWrap{position:absolute;left:50%;bottom:-8px;width:min(430px,68vw);transform:translateX(-50%);pointer-events:none;z-index:3}
+#weaponView{width:100%;height:auto;background:transparent;border-radius:0}
+#weaponName{position:absolute;right:16px;bottom:118px;z-index:3;padding:5px 9px;border-radius:999px;background:rgba(10,6,18,.72);color:#fff;font-size:13px;font-weight:700;pointer-events:none}
+#crossText{display:block;text-align:center;line-height:34px;font-size:32px;font-weight:900;text-shadow:0 0 8px #000,0 2px 5px #000}
 </style></head><body>
 <header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out</small></div></header>
 <div class="wrap">
@@ -37,7 +41,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
 <select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
 <option value="mixed">Mixed (one Meta Muse Image wall + procedural, ~$0.01/level)</option>
-<option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC, ~$0.06/level)</option></select>
+<option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC + weapon, ~$0.07/level)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, Instant levels, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key.</small></div></div>
@@ -144,7 +148,9 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <div class="stage">
   <canvas id="game" width="960" height="540"></canvas>
   <canvas id="gameGL" width="960" height="540" style="display:none;position:absolute;inset:0;width:960px;height:540px;max-width:100%"></canvas>
-  <div id="crosshair"><div class="lol"></div><div class="stick"></div></div>
+  <div id="crosshair"><div class="lol"></div><div class="stick"></div><span id="crossText" style="display:none"></span></div>
+  <div id="weaponWrap"><canvas id="weaponView" width="480" height="340"></canvas></div>
+  <div id="weaponName"></div>
   <button id="shootBtn">SHOOT</button>
 </div>
 <div id="mobile"><div id="joy"><div id="knob"></div></div><div class="mbtn"><button id="mFire">FIRE</button><button id="mJump">JUMP</button><button id="mReload">RELOAD</button></div></div>
@@ -511,6 +517,19 @@ async function buildMetaArtPack(spec, onStatus){
         "Full-body friendly 2D game NPC sprite, one original character, "+st+" style, "+game+
         ", front view, SOLID PURE MAGENTA #FF00FF background, no text, retro PSX game sprite"));
     }]);
+    jobs.push(["weapon image", async()=>{
+      let img=await metaImage(
+        "First-person video game weapon viewmodel only, "+
+        spec.artStyle+" style, "+spec.title+
+        ", original "+currentWeapon().name+
+        ", viewed from behind and slightly below, centred toward bottom of image, "+
+        "one weapon only, no hands, no character, no text, "+
+        "standing on a SOLID PURE MAGENTA #FF00FF background, retro PSX game art"
+      );
+      ART.weaponIdle=chromaKey(img);
+      ART.weaponFire=ART.weaponIdle;
+      ART.weaponFromMeta=true;
+    }]);
   }
   let done=0, failed=[];
   for(let [name, job] of jobs){
@@ -532,16 +551,20 @@ function startMetaArt(prov){
     $("status").innerHTML += '<br><span class="err">No Meta key saved, so no Meta images. Engine textures used instead — the game itself is fine.</span>';
     return;
   }
-  $("status").innerHTML += "<br><small>Asking Meta for real images (wall"+(mode==="full" ? ", floor, enemy sprites, NPC" : "")+")...</small>";
+  $("status").innerHTML += "<br><small>Asking Meta for real images (wall"+(mode==="full" ? ", floor, enemy sprites, NPC, weapon" : "")+")...</small>";
   let mySpec = spec;
   buildMetaArtPack(spec,(done,total,failed)=>{
     if(spec!==mySpec) return;
     let who = prov.id==="groq" ? "Text by Groq, Images: Meta (you selected Meta art). " : "";
+    let wExtra = "";
+    if(failed.some(f=>f.startsWith("weapon image"))) wExtra = "<br><small>Meta weapon image failed, so the engine generated the matching style weapon instead.</small>";
+    else if(ART.weaponFromMeta) wExtra = "<br><small>Meta also generated this game's weapon: "+ART.weaponName+"</small>";
     $("status").innerHTML =
       '<span class="ok">Now showing: <b>'+spec.title+'</b></span><br><small>'+
       who+"Meta images loaded: "+done+"/"+total+
       (failed.length ? ' &nbsp;<span class="err">Fallback kept for: '+failed.join(" · ")+"</span>"
                      : " — walls, floor and bad guys are now Meta images, not paint.")+
+      wExtra+
       "</small>";
   });
 }
@@ -571,6 +594,151 @@ function playerSpriteStyled(){
   _playerImgCache[key]=img; return img;
 }
 const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
+
+// ---------- Star Sprite v11: one weapon per style, never the demo weapon ----------
+// Emoji-free rule (Oct 26): the kawaii crosshair stays the CSS-drawn lollipop,
+// never the lollipop emoji character. WEAPONS.kawaii.cross is "drawn" for that.
+const WEAPONS={
+  kawaii:{name:"Lollipop Sugar Blaster", cross:"drawn", accent:"#ff2f86", body:"#ff7ab6", dark:"#7a244d"},
+  scifi:{name:"Neon Pulse Blaster", cross:"◎", accent:"#37e0ff", body:"#315a8c", dark:"#101d33"},
+  dungeon:{name:"Runewood Crossbow", cross:"◆", accent:"#ffb347", body:"#6e4f2a", dark:"#24180e"},
+  spooky:{name:"Graveyard Hex Revolver", cross:"◎", accent:"#b6ffce", body:"#45415c", dark:"#17141f"},
+  toy:{name:"Bubble Brick Blaster", cross:"◎", accent:"#ffcf3f", body:"#3fa7ff", dark:"#27324a"},
+  wildwest:{name:"Dusty Six-Shooter", cross:"+", accent:"#ffd84d", body:"#8a542e", dark:"#33200f"},
+  pirate:{name:"Brass Flintlock", cross:"+", accent:"#ffd84d", body:"#6b4226", dark:"#241408"},
+  city:{name:"Neon Street SMG", cross:"+", accent:"#ff3860", body:"#2f344d", dark:"#11131f"}
+};
+function currentWeapon(){
+  return WEAPONS[spec.artStyle] || WEAPONS.scifi;
+}
+function makeWeaponCanvas(spec, firing){
+  const c=document.createElement("canvas");
+  c.width=480; c.height=340;
+  const x=c.getContext("2d");
+  const w=currentWeapon();
+  const style=spec.artStyle||"scifi";
+  x.lineJoin="round"; x.lineCap="round";
+  function poly(points,fill,stroke){
+    x.beginPath();
+    points.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));
+    x.closePath(); x.fillStyle=fill; x.fill();
+    if(stroke){ x.strokeStyle=stroke; x.lineWidth=7; x.stroke(); }
+  }
+  function muzzle(px,py){
+    if(!firing) return;
+    x.save(); x.translate(px,py);
+    x.fillStyle="#fff6a6"; x.strokeStyle=w.accent; x.lineWidth=5;
+    x.beginPath();
+    for(let i=0;i<10;i++){
+      let a=i*Math.PI/5, r=i%2?10:30;
+      let px2=Math.cos(a)*r, py2=Math.sin(a)*r;
+      i?x.lineTo(px2,py2):x.moveTo(px2,py2);
+    }
+    x.closePath(); x.fill(); x.stroke(); x.restore();
+  }
+  x.fillStyle="rgba(0,0,0,.30)";
+  x.beginPath(); x.ellipse(250,318,150,18,0,0,7); x.fill();
+  if(style==="scifi" || style==="city"){
+    poly([[205,180],[360,160],[405,185],[390,225],[300,235],[285,290],[245,290],[235,235],[190,230]],w.body,w.dark);
+    poly([[355,172],[455,178],[455,202],[365,205]],w.dark,w.dark);
+    poly([[225,190],[315,180],[325,202],[230,210]],w.accent,null);
+    x.fillStyle=w.accent; x.beginPath(); x.arc(275,196,13,0,7); x.fill();
+    x.fillStyle=w.dark; x.fillRect(278,232,24,58);
+    if(style==="city"){ x.fillStyle="#ff3860"; x.fillRect(225,216,105,8); }
+    muzzle(462,190);
+  }
+  else if(style==="dungeon"){
+    x.strokeStyle=w.dark; x.lineWidth=18;
+    x.beginPath(); x.moveTo(240,305); x.lineTo(285,185); x.stroke();
+    x.strokeStyle=w.body; x.lineWidth=15;
+    x.beginPath(); x.moveTo(130,145); x.quadraticCurveTo(280,205,430,145); x.stroke();
+    x.strokeStyle="#e8dcc2"; x.lineWidth=4;
+    x.beginPath(); x.moveTo(130,145); x.lineTo(280,196); x.lineTo(430,145); x.stroke();
+    x.strokeStyle=w.accent; x.lineWidth=7;
+    x.beginPath(); x.moveTo(280,196); x.lineTo(280,92); x.stroke();
+    poly([[280,72],[268,102],[292,102]],w.accent,w.dark);
+    muzzle(280,72);
+  }
+  else if(style==="spooky" || style==="wildwest" || style==="pirate"){
+    poly([[230,205],[390,180],[420,205],[385,235],[275,240],[245,285],[215,280]],w.body,w.dark);
+    x.fillStyle=w.dark; x.fillRect(382,188,78,28);
+    x.fillStyle=style==="pirate"?"#c9973f":"#c0c5d6";
+    x.beginPath(); x.arc(292,214,27,0,7); x.fill();
+    x.strokeStyle=w.dark; x.lineWidth=5; x.stroke();
+    for(let i=0;i<6;i++){
+      let a=i*Math.PI/3;
+      x.fillStyle=w.dark; x.beginPath();
+      x.arc(292+Math.cos(a)*15,214+Math.sin(a)*15,5,0,7); x.fill();
+    }
+    if(style==="spooky"){ x.fillStyle=w.accent; x.beginPath(); x.arc(350,196,8,0,7); x.fill(); }
+    if(style==="pirate"){ x.fillStyle="#ffd84d"; x.fillRect(232,228,125,7); }
+    muzzle(466,202);
+  }
+  else if(style==="toy"){
+    x.fillStyle=w.body; x.strokeStyle=w.dark; x.lineWidth=7;
+    x.beginPath();
+    if(x.roundRect) x.roundRect(180,165,210,105,30); else x.rect(180,165,210,105);
+    x.fill(); x.stroke();
+    x.fillStyle=w.accent;
+    x.beginPath(); x.arc(245,205,25,0,7); x.arc(300,195,18,0,7); x.arc(345,220,14,0,7); x.fill();
+    x.fillStyle="#ff3f6e"; x.fillRect(382,188,72,38);
+    x.fillStyle="rgba(255,255,255,.75)";
+    x.beginPath(); x.arc(438,178,13,0,7); x.arc(460,195,9,0,7); x.fill();
+    muzzle(462,205);
+  }
+  else {
+    // Kawaii only, for the kawaii style/demo. Drawn lollipop, not an emoji.
+    x.strokeStyle="#fff"; x.lineWidth=17;
+    x.beginPath(); x.moveTo(255,320); x.lineTo(285,190); x.stroke();
+    let g=x.createRadialGradient(292,132,8,292,132,78);
+    g.addColorStop(0,"#fff"); g.addColorStop(.35,"#ff8fc0");
+    g.addColorStop(.72,"#ff2f86"); g.addColorStop(1,"#a31255");
+    x.fillStyle=g; x.beginPath(); x.arc(292,132,76,0,7); x.fill();
+    x.strokeStyle="#fff"; x.lineWidth=9;
+    x.beginPath(); x.arc(292,132,48,0,7); x.stroke();
+    muzzle(292,50);
+  }
+  return c;
+}
+function buildWeaponArt(s){
+  ART.weapon = currentWeapon();
+  ART.weaponIdle = makeWeaponCanvas(s,false);
+  ART.weaponFire = makeWeaponCanvas(s,true);
+  ART.weaponName = ART.weapon.name;
+  ART.weaponFromMeta = false;
+  refreshWeaponUI();
+}
+function refreshWeaponUI(){
+  if(!spec) return;
+  let w=currentWeapon();
+  let ct=$("crossText"), lol=document.querySelector("#crosshair .lol"), stick=document.querySelector("#crosshair .stick");
+  if(w.cross==="drawn"){
+    if(ct) ct.style.display="none";
+    if(lol) lol.style.display="block";
+    if(stick) stick.style.display="block";
+  } else {
+    if(ct){ ct.textContent=w.cross; ct.style.color=w.accent; ct.style.display="block"; }
+    if(lol) lol.style.display="none";
+    if(stick) stick.style.display="none";
+  }
+  if($("weaponName")) $("weaponName").textContent="Weapon: "+w.name;
+}
+let lastShotAt=0;
+function updateWeaponView(){
+  let canvas=$("weaponView"); if(!canvas) return;
+  let x=canvas.getContext("2d");
+  let firing=Date.now()-lastShotAt<110;
+  let img=firing?ART.weaponFire:ART.weaponIdle;
+  if(!img){ buildWeaponArt(spec); img=ART.weaponIdle; }
+  if(!img) return;
+  x.clearRect(0,0,canvas.width,canvas.height);
+  let moving=keys.w||keys.a||keys.s||keys.d||Math.abs(mobile.x)>.2||Math.abs(mobile.y)>.2;
+  let sway=moving?Math.sin(Date.now()/170)*7:Math.sin(Date.now()/500)*2;
+  let bob=moving?Math.abs(Math.sin(Date.now()/170))*5:0;
+  let recoil=firing?14:0;
+  x.drawImage(img,sway,18+bob+recoil,480,340);
+}
+
 // ---------- game state ----------
 let G=null;
 function loadSpec(s,src,promptText){
@@ -584,12 +752,16 @@ function loadSpec(s,src,promptText){
     fresh = repair(genInstant(keepTitle+" - Remix "+new Date().toLocaleTimeString(), fresh.engine, fresh.difficulty, fresh.boss));
     fresh.title = keepTitle;
   }
+  if(!fresh.artStyle){
+    fresh.artStyle = inferStyle((promptText||"")+" "+(fresh.title||"")+" "+(fresh.theme||""), $("styleSel") ? $("styleSel").value : "auto");
+  }
   spec = fresh; window.spec = spec;
   $("specBox").value = JSON.stringify(spec,null,1);
   $("quest").textContent = "Quest: " + (spec.quest||"Reach the goal ★");
   document.title = spec.title + " — Star Sprite";
   drawEditor();
   if(typeof refreshPropSelect==="function")refreshPropSelect();
+  buildWeaponArt(spec);
   resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
   $("hud").textContent = "NEW LEVEL LOADED: "+spec.title+" · "+spec.engine+" · "+hudText();
@@ -623,12 +795,17 @@ G.active.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py
 let sp2=(e.boss?.7:.45)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=18*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
 G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;G.hp=Math.min(100,G.hp+20);G.ammo+=10;beep(880,.1)}});
 if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest()}}
-function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
+function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;lastShotAt=Date.now();beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
 function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
 function draw(){
   if(!spec||!G)return;
+  let firstPerson=spec.engine==="fps"||spec.engine==="3d";
+  if($("weaponWrap")) $("weaponWrap").style.display=firstPerson?"block":"none";
+  if($("weaponName")) $("weaponName").style.display=firstPerson?"block":"none";
+  if($("crosshair")) $("crosshair").style.display=firstPerson?"block":"none";
+  if(firstPerson) updateWeaponView();
   let flash = window.__newLevelUntil && Date.now() < window.__newLevelUntil && !(G && G.won);
   let hudLine = ()=> (flash ? "NEW LEVEL LOADED: " : "") + hudText();
   if(spec.engine==="3d"){
@@ -678,7 +855,6 @@ function drawFPS(){
   drawSpritesPSX(B,w,h);
   ctx.imageSmoothingEnabled=false;
   ctx.clearRect(0,0,960,540);ctx.drawImage(BUF,0,0,960,540);
-  drawWeapon();
 }
 function drawSpritesPSX(B,w,h){
   let list=[...G.active.filter(e=>e.alive).map(e=>({t:"e",o:e,d:Math.hypot(e.x-G.px,e.y-G.py)})),
@@ -697,21 +873,6 @@ function drawSpritesPSX(B,w,h){
   });
   drawPropsBillboard(B,w,h);
   spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
-}
-function drawWeapon(){
-  // Star blaster viewmodel - NOT a lollipop. Only the crosshair is a lollipop.
-  let sway=Math.sin(Date.now()/220)*8;
-  ctx.save();ctx.translate(480+sway,475+Math.abs(Math.sin(Date.now()/220))*5);
-  ctx.rotate(-.12);
-  ctx.fillStyle="#2a1030";ctx.fillRect(-10,-10,20,70);
-  ctx.fillStyle="#ff5fa2";ctx.fillRect(-10,-10,20,70);
-  ctx.fillStyle="#ffd84d";ctx.fillRect(-6,0,12,50);
-  let g=ctx.createRadialGradient(0,-55,4,0,-55,52);g.addColorStop(0,"#fff");g.addColorStop(.4,"#ffd84d");g.addColorStop(.75,"#ff7ab6");g.addColorStop(1,"#ff2f86");
-  ctx.fillStyle=g;ctx.beginPath();
-  for(let i=0;i<10;i++){let r=i%2?22:52,a=-Math.PI/2+i*Math.PI/5,x=Math.cos(a)*r,y=Math.sin(a)*r;if(i==0)ctx.moveTo(x,-55+y);else ctx.lineTo(x,-55+y);}
-  ctx.closePath();ctx.fill();
-  ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,-55,10,0,7);ctx.fill();
-  ctx.restore();
 }
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"&&ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}}));
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th)}
