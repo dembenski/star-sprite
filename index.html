@@ -25,7 +25,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 #crosshair .stick{width:6px;height:26px;background:#fff;margin:0 auto;box-shadow:0 2px 8px #000}
 #shootBtn{position:absolute;right:18px;bottom:18px;width:92px;height:92px;border-radius:50%;font-size:18px;z-index:4;background:#ff2f86;box-shadow:0 6px 20px #0008;color:#fff;font-weight:700;border:0;cursor:pointer}
 </style></head><body>
-<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Starry and cute by default · Prompt in, playable game out</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -47,6 +47,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <section id="makeTab" class="card">
 <div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div>
 <div class="row"><select id="engineSel"><option value="fps">FPS 2.5D Raycaster</option><option value="top">Top-view Shooter</option><option value="side">Side-scroll Shooter</option><option value="3d">True 3D (WebGL)</option></select>
+<select id="styleSel"><option value="auto" selected>Style: Auto (from prompt)</option><option value="kawaii">Kawaii Dessert (demo style)</option><option value="scifi">Sci-Fi Neon</option><option value="dungeon">Dark Dungeon</option><option value="spooky">Spooky Horror PSX</option><option value="toy">Toy Blocks</option><option value="wildwest">Wild West</option><option value="pirate">Pirate Seas</option><option value="city">Neon City</option></select>
 <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button><button id="instant" class="alt">Instant level (no key)</button>
@@ -142,6 +143,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <div class="card"><div id="hud">Load a demo or generate a level.</div>
 <div class="stage">
   <canvas id="game" width="960" height="540"></canvas>
+  <canvas id="gameGL" width="960" height="540" style="display:none;position:absolute;inset:0;width:960px;height:540px;max-width:100%"></canvas>
   <div id="crosshair"><div class="lol"></div><div class="stick"></div></div>
   <button id="shootBtn">SHOOT</button>
 </div>
@@ -154,26 +156,49 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <script>
 "use strict";
 const $=id=>document.getElementById(id),ROSTER=["Sprinkle Imp","Custard Blob","Mint Wraith","Cocoa Knight"],THEMES=["Candy Kingdom","Sugar Dungeon","Berry Forest","Chocolate Vault","Lemon Sky"];
+const STYLES={
+ kawaii:{wall:"#ff7ab6",wall2:"#ffa4c8",floor:"#6b3550",sky:"#2a1745",enemy:["#ff7ab6","#ffd84d","#7be0d3","#a66a3f"],accent:"#ff2f86"},
+ scifi:{wall:"#2b3a67",wall2:"#3f6fb5",floor:"#101827",sky:"#020610",enemy:["#37e0ff","#ff3860","#b6ff3c","#c0c8ff"],accent:"#37e0ff"},
+ dungeon:{wall:"#5a5148",wall2:"#6e6257",floor:"#24201c",sky:"#0a0806",enemy:["#8a7f72","#a33b2e","#5f7d4f","#7a5aa0"],accent:"#ffb347"},
+ spooky:{wall:"#3d3a4a",wall2:"#4a4557",floor:"#17141f",sky:"#050308",enemy:["#cfd2e6","#7a1f1f","#3f6b4f","#5a3a7a"],accent:"#b3123f"},
+ toy:{wall:"#ffcf3f",wall2:"#3fa7ff",floor:"#2e8b57",sky:"#87ceeb",enemy:["#ff3f3f","#3fa7ff","#39d353","#ff8c1a"],accent:"#ff2f86"},
+ wildwest:{wall:"#a66a3f",wall2:"#8a542e",floor:"#6e4f2a",sky:"#2a1a0a",enemy:["#c9a86a","#8a3b2e","#5a6e3f","#4a3a2a"],accent:"#ffd84d"},
+ pirate:{wall:"#6b4a2f",wall2:"#7d5a38",floor:"#1d3a4a",sky:"#061826",enemy:["#c94f4f","#3fa7a0","#c9a86a","#3f5a8a"],accent:"#ffd84d"},
+ city:{wall:"#2a2d3f",wall2:"#3a3f5c",floor:"#14161f",sky:"#0a0a18",enemy:["#ff3860","#37e0ff","#ffd84d","#b6ff3c"],accent:"#ff2f86"}
+};
+function inferStyle(prompt, chosen){
+  if(chosen && chosen!=="auto") return chosen;
+  let p=(prompt||"").toLowerCase();
+  if(/candy|cupcake|kawaii|cake|dessert|sweet|sprinkle/.test(p)) return "kawaii";
+  if(/space|sci-fi|robot|alien|laser|cyber|starship/.test(p)) return "scifi";
+  if(/horror|ghost|haunted|spooky|vampire|zombie/.test(p)) return "spooky";
+  if(/pirate|sea|ship|treasure island/.test(p)) return "pirate";
+  if(/cowboy|western|desert town|sheriff/.test(p)) return "wildwest";
+  if(/city|street|neon|racing|police/.test(p)) return "city";
+  if(/toy|block|lego|playroom/.test(p)) return "toy";
+  if(/dungeon|castle|dragon|knight|wizard|fantasy/.test(p)) return "dungeon";
+  return "scifi";
+}
 let spec=null,feed=JSON.parse(localStorage.getItem("ff_feed")||"[]"),undoS=[],redoS=[],roomClip=null,bitCtx=[],keys={},playing=false,last=0,mobile={x:0,y:0,run:false,fire:false};
 const isTouch=matchMedia("(pointer:coarse)").matches&&'ontouchstart'in window; if(isTouch)$("mobile").style.display="block";
 // ---------- spec helpers ----------
 function blankMap(w,h){let m=[];for(let y=0;y<h;y++){let r=[];for(let x=0;x<w;x++)r.push(x==0||y==0||x==w-1||y==h-1?"#":".");m.push(r)}return m}
 function demoSpec(){let m=blankMap(20,14);[[3,3],[4,3],[5,3],[8,5],[11,3],[12,8],[6,9],[15,5],[17,9],[9,11]].forEach(([x,y])=>m[y][x]="#");m[1][1]="P";m[12][18]="G";
-return{title:"Cupcake Rescue — Demo",theme:THEMES[0],engine:"fps",difficulty:"Normal",boss:false,quest:"★ WOW DEMO: Rescue the Lemon Star! 3-at-a-time waves, boss at the goal!",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:18,y:12},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3},{x:14,y:3,type:ROSTER[2],hp:2},{x:5,y:10,type:ROSTER[3],hp:3},{x:12,y:10,type:ROSTER[0],hp:2},{x:16,y:6,type:ROSTER[1],hp:3},{x:8,y:6,type:ROSTER[2],hp:2},{x:3,y:11,type:ROSTER[3],hp:3},{x:17,y:12,type:"Cocoa Knight",hp:18,boss:true}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"},{x:15,y:10,kind:"treat"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2},{id:"n2",name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler! Waves come three at a time.",x:9,y:2},{id:"n3",name:"Berry",persona:"brave scout",greeting:"The boss guards the goal. You can do this!",x:14,y:11}]}}
+return{title:"Cupcake Rescue — Demo",theme:THEMES[0],artStyle:"kawaii",engine:"fps",difficulty:"Normal",boss:false,quest:"★ WOW DEMO: Rescue the Lemon Star! 3-at-a-time waves, boss at the goal!",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:18,y:12},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3},{x:14,y:3,type:ROSTER[2],hp:2},{x:5,y:10,type:ROSTER[3],hp:3},{x:12,y:10,type:ROSTER[0],hp:2},{x:16,y:6,type:ROSTER[1],hp:3},{x:8,y:6,type:ROSTER[2],hp:2},{x:3,y:11,type:ROSTER[3],hp:3},{x:17,y:12,type:"Cocoa Knight",hp:18,boss:true}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"},{x:15,y:10,kind:"treat"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2},{id:"n2",name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler! Waves come three at a time.",x:9,y:2},{id:"n3",name:"Berry",persona:"brave scout",greeting:"The boss guards the goal. You can do this!",x:14,y:11}]}}
 function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];s.props=s.props||[];return s}
 function find(s,c){for(let y=0;y<s.map.length;y++)for(let x=0;x<s.map[y].length;x++)if(s.map[y][x]==c)return{x,y};return null}
 function repair(s){s=normalize(JSON.parse(JSON.stringify(s)));let h=s.map.length,w=s.map[0].length;
 for(let x=0;x<w;x++){s.map[0][x]="#";s.map[h-1][x]="#"}for(let y=0;y<h;y++){s.map[y][0]="#";s.map[y][w-1]="#"}
 if(!find(s,'P')){s.map[1][1]='P'} if(!find(s,'G')){s.map[h-2][w-2]='G'}
 let p=find(s,'P'),g=find(s,'G');s.playerStart=p;s.goal=g;s.map[p.y][p.x]='P';
-s.enemies=s.enemies.filter(e=>e.x>0&&e.y>0&&e.x<w-1&&e.y<h-1).slice(0,s.boss?31:30);s.enemies.forEach(e=>{if(!ROSTER.includes(e.type))e.type=ROSTER[0];e.hp=e.hp||2});
+s.enemies=s.enemies.filter(e=>e.x>0&&e.y>0&&e.x<w-1&&e.y<h-1).slice(0,s.boss?31:30);s.enemies.forEach(e=>{if(!e.type || typeof e.type!=="string") e.type="Guard"; e.type=e.type.slice(0,28); e.hp=e.hp||2});
 if(s.boss&&!s.enemies.some(e=>e.boss))s.enemies.push({x:g.x-1,y:g.y,type:"Cocoa Knight",hp:18,boss:true});
 if(s.engine!=="side"){ // flood-fill reachability; carve L corridor if goal unreachable
  let seen=new Set(),q=[p];seen.add(p.x+","+p.y);while(q.length){let c=q.pop();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let nx=c.x+dx,ny=c.y+dy,k=nx+","+ny;if(s.map[ny]&&s.map[ny][nx]!=="#"&&!seen.has(k)){seen.add(k);q.push({x:nx,y:ny})}})}
  if(!seen.has(g.x+","+g.y)){for(let x=Math.min(p.x,g.x);x<=Math.max(p.x,g.x);x++)if(s.map[p.y][x]!=="P")s.map[p.y][x]=".";for(let y=Math.min(p.y,g.y);y<=Math.max(p.y,g.y);y++)if(s.map[y][g.x]!=="G")s.map[y][g.x]="."}}
 return s}
 function validate(s){try{s=normalize(s);if(!s.map||s.map.length<6||s.map[0].length<6)return"map too small";if(!find(s,'P'))return"no player start";if(!find(s,'G'))return"no goal";if(s.enemies.length>31)return"enemy cap exceeded";return null}catch(e){return e.message}}
-function genInstant(prompt,eng,diff,boss){let s=demoSpec();s.engine=eng;s.difficulty=diff;s.boss=boss;s.title=(prompt||"Instant Adventure").slice(0,48);s.theme=THEMES[Math.floor(Math.random()*THEMES.length)];
+function genInstant(prompt,eng,diff,boss){let s=demoSpec();s.engine=eng;s.difficulty=diff;s.boss=boss;s.title=(prompt||"Instant Adventure").slice(0,48);s.theme=THEMES[Math.floor(Math.random()*THEMES.length)];s.artStyle=inferStyle(prompt, $("styleSel")?$("styleSel").value:"auto");
 s.map=blankMap(18,13);for(let i=0;i<16;i++){let x=1+Math.random()*16|0,y=1+Math.random()*11|0;if((x>3||y>3))s.map[y][x]="#"}s.map[1][1]="P";s.map[11][16]="G";
 s.enemies=Array.from({length:diff==="Insane"?12:diff==="Hard"?9:diff==="Easy"?4:6},(_,i)=>({x:2+Math.random()*14|0,y:2+Math.random()*9|0,type:ROSTER[i%4],hp:2+i%3}));return repair(s)}
 // ---------- providers ----------
@@ -187,7 +212,15 @@ let r;try{r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"applicatio
 if(r.status===429)throw new Error("429 free-tier rate limit — wait a minute, your key is fine.");if(r.status===401)throw new Error("401 bad key — check the key for this provider.");if(!r.ok)throw new Error("Provider error "+r.status);
 let j=await r.json();return j.choices[0].message.content}
 function parseJSON(t){try{return JSON.parse(t.replace(/```json|```/g,"").trim())}catch(e){throw new Error("JSON parse failure (not a network failure): "+e.message)}}
-async function aiGenerate(retryNote){let sys=`Return ONLY JSON spec: {title,theme,engine,difficulty,boss,quest,map:[strings using # . D P G],enemies:[{x,y,type,hp}],pickups:[{x,y,kind}],npcs:[{id,name,persona,greeting,x,y}]} Enemy types from ${ROSTER.join(", ")}. Original dessert-kawaii, no trademark names.`;
+async function aiGenerate(retryNote){let sys=`Return ONLY JSON spec:
+{title,theme,artStyle,engine,difficulty,boss,quest,map:[strings using # . D P G],
+enemies:[{x,y,type,hp}],pickups:[{x,y,kind}],npcs:[{id,name,persona,greeting,x,y}]}
+artStyle must be one of: kawaii, scifi, dungeon, spooky, toy, wildwest, pirate, city.
+Pick the artStyle that matches the user's prompt. Do NOT use kawaii
+unless the prompt asks for cute/candy/dessert.
+Invent original enemy type names that fit the prompt's genre
+(e.g. "Rust Drone", "Crypt Ghoul", "Reef Raider"). No trademark names.
+Original world, names and layouts only.`;
 let txt=await llm([{role:"system",content:sys},{role:"user",content:$("prompt").value+" Engine:"+$("engineSel").value+(retryNote?" Fix: "+retryNote:"")}]);let s=repair(parseJSON(txt));let v=validate(s);if(v)throw new Error(v);return s}
 // ---------- art / audio ----------
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
@@ -258,6 +291,66 @@ const SPRITES={
 "Cocoa Knight":pixSprite([
 ".....KKGGGGGGKK.....","....KCCCCCCCCCCK....","...KCCWWKCCWWKCCK...","...KCCWEKCCWEKCCK...","...KCCCCCCCCCCCCK...","....KCCGGGGCCCK.....","...KCCCCCCCCCCCK....","..KCCKCCCCCCCCKCCK..","..KCCKCCCCCCCCKCCK..","...KKKKKKKKKKKK....."],{K:"#2a1030",C:"#a66a3f",W:"#ffffff",E:"#241632",G:"#ffd84d"})
 };
+let texCache={};
+function texFor(kind){
+  let st = STYLES[spec.artStyle]||STYLES.scifi, key=spec.artStyle+"_"+kind;
+  if(texCache[key]) return texCache[key];
+  if(spec.artStyle==="kawaii"){
+    let t = kind==="floor" ? TEX_FLOOR : TEX_WALL;
+    texCache[key]=t; return t;
+  }
+  const c=document.createElement("canvas"); c.width=c.height=64;
+  const x=c.getContext("2d"); const r=rng(spec.artStyle.length*77+kind.length);
+  x.fillStyle = kind==="floor"?st.floor:st.wall; x.fillRect(0,0,64,64);
+  if(kind==="floor"){
+    x.fillStyle=st.wall2; x.fillRect(0,0,32,32); x.fillRect(32,32,32,32);
+  } else if(spec.artStyle==="scifi"){
+    x.fillStyle=st.wall2; x.fillRect(4,4,56,56);
+    x.fillStyle=st.accent; x.fillRect(8,30,48,3); x.fillRect(48,8,3,20);
+    x.fillStyle="#0a1428"; x.fillRect(10,10,16,12);
+  } else if(spec.artStyle==="dungeon"||spec.artStyle==="spooky"){
+    for(let row=0;row<4;row++)for(let col=0;col<2;col++){
+      x.fillStyle=row%2?st.wall:st.wall2;
+      x.fillRect(col*32+(row%2?16:0)-14,row*16+2,28,12);}
+    x.fillStyle="#00000055"; for(let i=0;i<60;i++)x.fillRect(r()*64,r()*64,2,1);
+  } else {
+    x.fillStyle=st.wall2; for(let i=0;i<4;i++)x.fillRect(0,i*16,64,2);
+    x.fillStyle=st.accent; for(let i=0;i<8;i++)x.fillRect(6+i*8,6+((i*13)%48),4,4);
+  }
+  if(kind==="wall"){ x.fillStyle="#00000022"; for(let i=0;i<120;i++)x.fillRect(r()*64,r()*64,1,1); }
+  texCache[key]=c; return c;
+}
+function makeSpriteStyled(colour, boss){
+  let img = pixSprite([
+"......KKKKKKKK......","....KKPPPPPPPPKK....","...KPPRRPPPPRRPPK...","..KPPPPPPPPPPPPPPK..","..KPWWKPPPPPPWWKPK..","..KPWEKPPPPPPWEKPK..","..KPPPPPPPPPPPPPPK..","..KPPPWWWWWWPPPPK...","...KPPPPPPPPPPK.....","....KKPPPPPPKK......","...KPPKPPPPKPPK.....","..KPPPKPPPPKPPPK....","..KPPPPPPPPPPPPK....","...KKKKKKKKKKKK....."],{K:"#2a1030",P:colour,W:"#ffffff",E:"#241632",R:"#ff2f86"});
+  if(boss){
+    let x=img.getContext("2d"); x.fillStyle="#ffd84d";
+    x.fillRect(44,2,40,18); x.fillRect(40,0,10,14); x.fillRect(62,0,10,14); x.fillRect(84,0,10,14);
+  }
+  return img;
+}
+function spriteFor(e){
+  let st=STYLES[spec.artStyle]||STYLES.scifi;
+  let h=0; for(let ch of (e.type||"Guard")) h=(h*31+ch.charCodeAt(0))%997;
+  if(e._img && e._imgStyle===spec.artStyle && e._img instanceof HTMLCanvasElement) return e._img;
+  e._img = makeSpriteStyled(st.enemy[h % st.enemy.length], !!e.boss);
+  e._imgStyle = spec.artStyle;
+  return e._img;
+}
+function spriteForNPC(n){
+  if(n._img && n._imgStyle===spec.artStyle && n._img instanceof HTMLCanvasElement) return n._img;
+  n._img = makeSpriteStyled("#e8e8f0", false);
+  n._imgStyle = spec.artStyle;
+  return n._img;
+}
+let _playerImgCache={};
+function playerSpriteStyled(){
+  let key=spec.artStyle||"scifi";
+  if(_playerImgCache[key]) return _playerImgCache[key];
+  let st=STYLES[key]||STYLES.scifi;
+  let img=makeSpriteStyled(st.accent, false);
+  _playerImgCache[key]=img; return img;
+}
 const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
@@ -310,8 +403,8 @@ function resetGame(){
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
 function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;
 if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
-else{let dx=(Math.cos(G.angle)*f-Math.sin(G.angle)*s*(spec.engine==="top"?1:0)+ (spec.engine==="top"?s*Math.cos(G.angle):0)),dy=(Math.sin(G.angle)*f+Math.cos(G.angle)*s*(spec.engine==="top"?1:0));
-if(spec.engine==="top"){dx=f*0+ (keys.d?1:0)-(keys.a?1:0)+mobile.x;dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l}
+else if(spec.engine==="top"){let dx=(keys.d?1:0)-(keys.a?1:0)+mobile.x,dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
+else{let dx=Math.cos(G.angle)*f - Math.sin(G.angle)*s, dy=Math.sin(G.angle)*f + Math.cos(G.angle)*s;
 let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
 G.active.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
 let sp2=(e.boss?.7:.45)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=18*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
@@ -321,20 +414,32 @@ function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;beep(180,.06,"sawtooth")
 function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
-function draw(){if(!spec||!G)return;let e=spec.engine;if(e==="3d"){if(!draw3D()){drawFPS();$("hud").innerHTML="WebGL unavailable — fell back to 2.5D raycaster (honest fallback). "+hudText()}}else if(e==="fps")drawFPS();else if(e==="top")drawTop();else drawSide();
-if(e!=="3d" && !(G && G.won)){
-  if(window.__newLevelUntil && Date.now() < window.__newLevelUntil) $("hud").textContent = "NEW LEVEL LOADED: " + hudText();
-  else $("hud").textContent = hudText();
-}}
+function draw(){
+  if(!spec||!G)return;
+  let flash = window.__newLevelUntil && Date.now() < window.__newLevelUntil && !(G && G.won);
+  let hudLine = ()=> (flash ? "NEW LEVEL LOADED: " : "") + hudText();
+  if(spec.engine==="3d"){
+    if(draw3D()){ $("hud").textContent="TRUE 3D (WebGL) · "+hudLine(); return; }
+    GLC.style.display="none"; cv.style.visibility="visible";
+    drawFPS();
+    $("hud").innerHTML="WebGL truly unavailable on this device - showing 2.5D instead. "+hudText();
+    return;
+  }
+  GLC.style.display="none"; cv.style.visibility="visible";
+  if(spec.engine==="fps")drawFPS(); else if(spec.engine==="top")drawTop(); else drawSide();
+  if(!(G && G.won)) $("hud").textContent=hudLine();
+}
 function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
-function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
+function colors(){return (STYLES[spec.artStyle]||STYLES.scifi).wall}
 function drawFPS(){
   const w=320,h=180;
   // Sky + floor as full textures, NOT top-slice bands.
   // The old band code reused only the top 4px of each texture for every
   // band, so any bright pixel in that slice became a vertical dashed line
   // across the whole sky/floor. Full-texture draws fix that.
-  for(let tx=0;tx<w;tx+=64){B.drawImage(TEX_SKY,0,0,64,64,tx,0,64,h/2);B.drawImage(TEX_FLOOR,0,0,64,64,tx,h/2,64,h/2);}
+  let _st = STYLES[spec.artStyle]||STYLES.scifi;
+  if(spec.artStyle==="kawaii"){ for(let tx=0;tx<w;tx+=64){B.drawImage(TEX_SKY,0,0,64,64,tx,0,64,h/2);B.drawImage(TEX_FLOOR,0,0,64,64,tx,h/2,64,h/2);} }
+  else { B.fillStyle=_st.sky; B.fillRect(0,0,w,h/2); for(let tx=0;tx<w;tx+=64){B.drawImage(texFor("floor"),0,0,64,64,tx,h/2,64,h/2);} }
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
   for(let col=0;col<w;col++){
@@ -347,10 +452,9 @@ function drawFPS(){
     // Coherent walls: pink cake everywhere, chocolate only near the goal
     // (boss area). The old %7/%3 patchwork made every 3rd/7th tile a
     // different colour, which is why the walls looked random and weird.
-    let gx=spec.goal?spec.goal.x:-99, gy=spec.goal?spec.goal.y:-99;
     let texImg,texW=64;
     if(window.CUSTOM_WALL){texImg=window.CUSTOM_WALL;texW=256;}
-    else texImg=(Math.abs(Math.floor(x)-gx)<=2&&Math.abs(Math.floor(y)-gy)<=2)?TEX_CHOC:TEX_WALL;
+    else texImg=texFor("wall");
     B.drawImage(texImg,Math.floor(tex*texW),0,1,texW,col,h/2-wh/2,1,wh);
     let fog=Math.min(.75,correct/16);
     B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
@@ -372,8 +476,8 @@ function drawSpritesPSX(B,w,h){
     let sx=w/2+Math.tan(ang)*(w/.9)-s/2;
     let bob=Math.sin(Date.now()/180+o.x)* (3/Math.max(1,d));
     let sy=h/2-s/2+10+bob;
-    if(t==="e"){B.drawImage(SPRITES[o.type]||SPRITES["Sprinkle Imp"],sx,sy,s,s);if(o.boss){B.fillStyle="#ffd84d";B.fillRect(sx+s*.38,sy-8,s*.24,8);}}
-    else{B.drawImage(SPRITES["Custard Blob"],sx,sy,s*.8,s*.8);B.fillStyle="#fff";B.fillRect(sx,sy-12,s,8);B.fillStyle="#241632";B.font="6px monospace";B.fillText(o.name,sx+2,sy-5);}
+    if(t==="e"){B.drawImage(spriteFor(o),sx,sy,s,s);if(o.boss){B.fillStyle="#ffd84d";B.fillRect(sx+s*.38,sy-8,s*.24,8);}}
+    else{B.drawImage(spriteForNPC(o),sx,sy,s*.8,s*.8);B.fillStyle="#fff";B.fillRect(sx,sy-12,s,8);B.fillStyle="#241632";B.font="6px monospace";B.fillText(o.name,sx+2,sy-5);}
     if(t==="e"&&o.hp<5){B.fillStyle="#ff2f86";B.fillRect(sx,sy-4,s*(o.hp/5),3);}
   });
   drawPropsBillboard(B,w,h);
@@ -395,22 +499,72 @@ function drawWeapon(){
   ctx.restore();
 }
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
-G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(PLAYERSPRITE,n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(PLAYERSPRITE,G.px*tw-8,G.py*th,tw,th)}
-function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(PLAYERSPRITE,G.px*ts-cam,G.py*ts,ts,ts)}
-// True 3D — raw WebGL, no libraries
-let gl=cv.getContext("webgl",{failIfMajorPerformanceCaveat:false})||null,glProg=null;
-function initGL(){if(!gl)return false;let vs=`attribute vec3 p;attribute vec3 c;varying vec3 v;uniform mat4 m;void main(){v=c;gl_Position=m*vec4(p,1.);}`,fs=`precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.);}`;
-function sh(t,s){let x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);return x}glProg=gl.createProgram();gl.attachShader(glProg,sh(gl.VERTEX_SHADER,vs));gl.attachShader(glProg,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(glProg);return gl.getProgramParameter(glProg,gl.LINK_STATUS)}
-function mat(x,y,z,a){let f=1/Math.tan(.9/2),asp=16/9,n=.1,fa=50,p=[f/asp,0,0,0,0,f,0,0,0,0,(fa+n)/(n-fa),-1,0,0,2*fa*n/(n-fa),0];let ca=Math.cos(-a),sa=Math.sin(-a);let vx=-x,vz=-z;let rx=vx*ca-vz*sa,rz=vx*sa+vz*ca;
-return new Float32Array([p[0]*ca,0,p[0]*sa,0, 0,p[5],0,0, -p[0]*sa,p[10]*0,p[0]*ca,p[11], rx*p[0],-y*p[5]+0,rz, -rz])}
-function draw3D(){try{if(!glProg&&!initGL())return false;gl.viewport(0,0,cv.width,cv.height);gl.clearColor(.15,.05,.2,1);gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(glProg);
-let cube=[-0.5,-0.5,-0.5, 0.5,-0.5,-0.5, 0.5,0.5,-0.5, -0.5,0.5,-0.5, -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5],idx=[0,1,2,0,2,3,4,6,5,4,7,6,0,4,5,0,5,1,3,2,6,3,6,7,0,3,7,0,7,4,1,5,6,1,6,2];
-let buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(cube),gl.STATIC_DRAW);let loc=gl.getAttribLocation(glProg,"p");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
-let ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.STATIC_DRAW);
-let cl=gl.getAttribLocation(glProg,"c");gl.disableVertexAttribArray(cl);
-let uni=gl.getUniformLocation(glProg,"m");
-spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){gl.uniformMatrix4fv(uni,false,mat(G.px-(x-G.px),1,G.py-(y-G.py),G.angle));gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0)}}));
-return true}catch(e){return false}}
+G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th)}
+function drawSide(){ctx.fillStyle=(STYLES[spec.artStyle]||STYLES.scifi).sky;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts)}
+// True 3D — separate WebGL canvas, raw WebGL, no libraries
+let GLC=$("gameGL"), gl=GLC?GLC.getContext("webgl"):null, prog, uM, uC, aP, cubeBuf;
+function initGL(){
+  if(!gl) return false;
+  let vs="attribute vec3 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,1.);}";
+  let fs="precision mediump float;uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}";
+  function sh(t,s){let o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+  prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return false;
+  uM=gl.getUniformLocation(prog,"m"); uC=gl.getUniformLocation(prog,"c");
+  aP=gl.getAttribLocation(prog,"p");
+  let v=[];
+  let F=[[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,-.5]],
+         [[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],
+         [[-.5,-.5,-.5],[-.5,.5,-.5],[-.5,.5,.5],[-.5,-.5,.5]],
+         [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],
+         [[-.5,-.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[.5,-.5,-.5]],
+         [[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]]];
+  F.forEach(f=>{v.push(...f[0],...f[1],...f[2],...f[0],...f[2],...f[3]);});
+  cubeBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
+  return true;
+}
+function persp(fov,asp,n,f){let t=1/Math.tan(fov/2);return[t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0];}
+function lookAt(e,c,up){
+  let z=norm(sub(e,c)),x=norm(cross(up,z)),y=cross(z,x);
+  return[x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0,
+         -dot(x,e),-dot(y,e),-dot(z,e),1];
+}
+function sub(a,b){return[a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function norm(a){let l=Math.hypot(...a)||1;return a.map(v=>v/l);}
+function mul(a,b){let o=new Array(16).fill(0);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];return o;}
+function model(x,y,z,sx,sy,sz){return[sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1];}
+function hexC(hex){let n=parseInt(hex.slice(1),16);return[((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];}
+function drawCube(mvp,col){
+  gl.uniformMatrix4fv(uM,false,new Float32Array(mvp));
+  gl.uniform3fv(uC,col); gl.drawArrays(gl.TRIANGLES,0,36);
+}
+function draw3D(){
+  if(!gl || (!prog && !initGL())) return false;
+  GLC.style.display="block"; cv.style.visibility="hidden";
+  gl.viewport(0,0,960,540); gl.enable(gl.DEPTH_TEST);
+  let st=STYLES[spec.artStyle]||STYLES.scifi, sky=hexC(st.sky);
+  gl.clearColor(sky[0],sky[1],sky[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(prog); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
+  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,3,gl.FLOAT,false,0,0);
+  let eye=[G.px,0.55,G.py];
+  let view=lookAt(eye,[G.px+Math.cos(G.angle),0.55,G.py+Math.sin(G.angle)],[0,1,0]);
+  let vp=mul(persp(1.15,960/540,0.05,60),view);
+  drawCube(mul(vp,model(spec.map[0].length/2,-0.55,spec.map.length/2,spec.map[0].length,0.1,spec.map.length)),hexC(st.floor));
+  spec.map.forEach((row,y)=>[...row].forEach((c,x)=>{
+    if(c==="#")drawCube(mul(vp,model(x+.5,0,y+.5,1,1.1,1)),hexC(st.wall));
+    if(c==="D")drawCube(mul(vp,model(x+.5,0,y+.5,1,1.1,1)),hexC(st.accent));
+    if(c==="G")drawCube(mul(vp,model(x+.5,0.15,y+.5,0.6,0.6,0.6)),[1,0.85,0.2]);
+  }));
+  G.active.forEach(e=>{if(e.alive)drawCube(mul(vp,model(e.x+.5,e.boss?0.25:0,e.y+.5,e.boss?1:0.65,e.boss?1.1:0.65,e.boss?1:0.65)),hexC(st.enemy[0]));});
+  (spec.npcs||[]).forEach(n=>drawCube(mul(vp,model(n.x+.5,0,n.y+.5,0.55,0.7,0.55)),[1,1,1]));
+  (spec.props||[]).forEach(p=>drawCube(mul(vp,model(p.x+.5,0,p.y+.5,p.scale||1,(p.scale||1)*0.9,p.scale||1)),hexC(p.color||st.accent)));
+  return true;
+}
 function loop(ts){
   requestAnimationFrame(loop);
   if(!spec || !G) return;
@@ -426,7 +580,7 @@ function loop(ts){
 }
 requestAnimationFrame(loop);
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")shoot();if(e.key.toLowerCase()==="r")G&&(G.ammo=30)});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
-cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv)G.angle+=e.movementX*.003});
+cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});if(GLC)GLC.addEventListener("pointerdown",()=>{shoot();GLC.requestPointerLock&&spec.engine==="3d"&&GLC.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv||document.pointerLockElement===GLC)G.angle+=e.movementX*.003});
 $("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
 $("mFire").onclick=shoot;let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
 let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
@@ -912,6 +1066,7 @@ $("generate").onclick = async () => {
     s.engine     = $("engineSel").value;
     s.difficulty = $("diff").value;
     s.boss       = $("boss").checked;
+    s.artStyle = inferStyle($("prompt").value, $("styleSel")?$("styleSel").value:"auto");
     loadSpec(s, "ai", $("prompt").value);
     renderFeedAdd($("prompt").value, "ai");
     $("status").innerHTML = '<span class="ok">Generated &amp; showing: <b>'+spec.title+'</b></span>' +
@@ -923,6 +1078,7 @@ $("generate").onclick = async () => {
       s.engine = $("engineSel").value;
       s.difficulty = $("diff").value;
       s.boss = $("boss").checked;
+      s.artStyle = inferStyle($("prompt").value, $("styleSel")?$("styleSel").value:"auto");
       loadSpec(s, "ai-retry", $("prompt").value);
       renderFeedAdd($("prompt").value, "ai-retry");
     } catch(e2) {
