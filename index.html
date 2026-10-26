@@ -261,9 +261,52 @@ const SPRITES={
 const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
-function loadSpec(s,src,promptText){spec=repair(s);if(typeof refreshPropSelect==="function")refreshPropSelect();let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
-spec.map=spec.map.map(r=>r.join(""));$("specBox").value=JSON.stringify(spec,null,1);$("quest").textContent="Quest: "+(spec.quest||"Reach ★");drawEditor();resetGame();showBest()}
-function resetGame(){normalize(spec);let p=spec.playerStart;let allE=spec.enemies.map(e=>({...e,alive:true,pat:Math.random()*6.28}));G={px:p.x+.5,py:p.y+.5,vx:0,vy:0,angle:0,hp:100,ammo:30,kills:0,start:Date.now(),onGround:false,enemies:allE,active:allE.slice(0,3),queue:allE.slice(3),pickups:spec.pickups.map(e=>({...e,taken:false})),won:false};playing=true}
+function loadSpec(s,src,promptText){
+  let oldHash = spec ? specHash(spec) : "";
+  let fresh;
+  try { fresh = repair(JSON.parse(JSON.stringify(s))); } catch(e){
+    fresh = demoSpec();
+    $("status").innerHTML = '<span class="err">Generated level was broken ('+e.message+') — demo loaded instead.</span>';
+  }
+  let v = validate(fresh);
+  if(v){
+    fresh = demoSpec();
+    $("status").innerHTML = '<span class="err">Invalid generated level ('+v+') — demo loaded instead.</span>';
+  }
+  spec = fresh;
+  window.spec = spec;
+  if(oldHash && oldHash === specHash(spec) && src !== "demo"){
+    spec = genInstant(promptText || spec.title, spec.engine, spec.difficulty, spec.boss);
+  }
+  spec.map = spec.map.map(r=>Array.isArray(r)?r.join(""):r);
+  if(typeof refreshPropSelect==="function")refreshPropSelect();
+  $("specBox").value = JSON.stringify(spec, null, 1);
+  $("quest").textContent = "Quest: " + (spec.quest || "Reach ★");
+  document.title = spec.title + " — Star Sprite";
+  drawEditor();
+  resetGame();
+  draw();
+  window.__newLevelUntil = Date.now()+3000;
+  $("hud").textContent = "NEW LEVEL LOADED: " + spec.title + " · " + spec.engine + " · " + hudText();
+  $("game").scrollIntoView({behavior:"smooth", block:"center"});
+  showBest();
+}
+function resetGame(){
+  normalize(spec);
+  let p = find(spec,'P') || spec.playerStart || {x:1,y:1};
+  spec.playerStart = p;
+  let all = (spec.enemies || []).map(e => ({...e, alive:true, pat:Math.random()*6.28, hp:e.hp||3}));
+  G = {
+    px:p.x+.5, py:p.y+.5, vx:0, vy:0, angle:0,
+    hp:100, ammo:30, kills:0, deaths:0,
+    start:Date.now(), onGround:false, won:false,
+    enemies: all,
+    active: all.slice(0,3),
+    queue:  all.slice(3),
+    pickups:(spec.pickups||[]).map(e => ({...e, taken:false}))
+  };
+  playing = true;
+}
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
 function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;
 if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
@@ -279,7 +322,10 @@ function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
 function draw(){if(!spec||!G)return;let e=spec.engine;if(e==="3d"){if(!draw3D()){drawFPS();$("hud").innerHTML="WebGL unavailable — fell back to 2.5D raycaster (honest fallback). "+hudText()}}else if(e==="fps")drawFPS();else if(e==="top")drawTop();else drawSide();
-if(e!=="3d")$("hud").textContent=hudText()}
+if(e!=="3d" && !(G && G.won)){
+  if(window.__newLevelUntil && Date.now() < window.__newLevelUntil) $("hud").textContent = "NEW LEVEL LOADED: " + hudText();
+  else $("hud").textContent = hudText();
+}}
 function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
 function drawFPS(){
@@ -365,7 +411,19 @@ let cl=gl.getAttribLocation(glProg,"c");gl.disableVertexAttribArray(cl);
 let uni=gl.getUniformLocation(glProg,"m");
 spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){gl.uniformMatrix4fv(uni,false,mat(G.px-(x-G.px),1,G.py-(y-G.py),G.angle));gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0)}}));
 return true}catch(e){return false}}
-function loop(ts){requestAnimationFrame(loop);if(!playing||!G)return;let dt=Math.min(.05,(ts-last)/1000||.016);last=ts;move(dt);draw()}
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!spec || !G) return;
+  let dt = Math.min(.05, (ts-last)/1000 || .016);
+  last = ts;
+  try {
+    if(playing && !G.won) move(dt);
+    draw();
+  } catch(e){
+    $("hud").innerHTML = '<span class="err">Draw error: '+e.message+' — press Play / Restart.</span>';
+    console.error(e);
+  }
+}
 requestAnimationFrame(loop);
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")shoot();if(e.key.toLowerCase()==="r")G&&(G.ammo=30)});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv)G.angle+=e.movementX*.003});
@@ -844,7 +902,36 @@ print("EXPORTED TO:",filepath)
 };
 
 // ---------- main buttons ----------
-$("generate").onclick=async()=>{$("status").textContent="Generating… AI writes a spec (recipe), never code.";try{if($("artMode").value!=="painted"&&!localStorage.getItem("ff_key_meta"))throw new Error("Meta art modes need a saved Meta key — falling back to Painted.");let s=await aiGenerate();s.engine=$("engineSel").value;s.difficulty=$("diff").value;s.boss=$("boss").checked;loadSpec(s,"ai",$("prompt").value);renderFeedAdd($("prompt").value,"ai");$("status").innerHTML='<span class="ok">Generated & validated.</span>'}catch(e){$("status").innerHTML='<span class="err">'+e.message+' Trying one retry / fallback…</span>';try{let s=await aiGenerate(e.message);loadSpec(s,"ai-retry",$("prompt").value);renderFeedAdd($("prompt").value,"ai-retry")}catch(e2){loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"fallback",$("prompt").value);renderFeedAdd($("prompt").value,"fallback");$("status").innerHTML+='<br><span class="err">Fallback level loaded so you are never stuck.</span>'}}};
+$("generate").onclick = async () => {
+  $("status").textContent = "Generating… Muse Wonder / Groq writes a spec (recipe), never code.";
+  let beforeTitle = spec ? spec.title : "";
+  try {
+    if($("artMode").value !== "painted" && !localStorage.getItem("ff_key_meta"))
+      throw new Error("Meta art modes need a saved Meta key — use Painted, or save a Meta key.");
+    let s = await aiGenerate("Make the layout clearly different from any previous level. Seed: " + Date.now());
+    s.engine     = $("engineSel").value;
+    s.difficulty = $("diff").value;
+    s.boss       = $("boss").checked;
+    loadSpec(s, "ai", $("prompt").value);
+    renderFeedAdd($("prompt").value, "ai");
+    $("status").innerHTML = '<span class="ok">Generated &amp; showing: <b>'+spec.title+'</b></span>' +
+      (beforeTitle === spec.title ? ' <span class="err">(same title as before — layout was regenerated)</span>' : '');
+  } catch(e) {
+    $("status").innerHTML = '<span class="err">'+e.message+' Trying one retry / fallback…</span>';
+    try {
+      let s = await aiGenerate(e.message);
+      s.engine = $("engineSel").value;
+      s.difficulty = $("diff").value;
+      s.boss = $("boss").checked;
+      loadSpec(s, "ai-retry", $("prompt").value);
+      renderFeedAdd($("prompt").value, "ai-retry");
+    } catch(e2) {
+      loadSpec(genInstant($("prompt").value, $("engineSel").value, $("diff").value, $("boss").checked), "fallback", $("prompt").value);
+      renderFeedAdd($("prompt").value, "fallback");
+      $("status").innerHTML += '<br><span class="err">Fallback level loaded and shown so you are never stuck.</span>';
+    }
+  }
+};
 $("instant").onclick=()=>{loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"instant",$("prompt").value);renderFeedAdd($("prompt").value,"instant")};
 $("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};$("shuffle").onclick=()=>{let t=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];$("prompt").value=t[Math.random()*t.length|0]};
 // shared-link boot
