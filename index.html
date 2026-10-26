@@ -22,7 +22,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 .stage{position:relative}
 #crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;pointer-events:none;z-index:3}
 #crosshair .lol{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#ff7ab6 55%,#ff2f86);border:2px solid #fff;box-shadow:0 2px 8px #000}
-#crosshair .stick{width:4px;height:26px;background:#fff;margin:0 auto;box-shadow:0 2px 8px #000}
+#crosshair .stick{width:6px;height:26px;background:#fff;margin:0 auto;box-shadow:0 2px 8px #000}
 #shootBtn{position:absolute;right:18px;bottom:18px;width:92px;height:92px;border-radius:50%;font-size:18px;z-index:4;background:#ff2f86;box-shadow:0 6px 20px #0008;color:#fff;font-weight:700;border:0;cursor:pointer}
 </style></head><body>
 <header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Starry and cute by default · Prompt in, playable game out</small></div></header>
@@ -271,12 +271,18 @@ function drawSpritesPSX(B,w,h){
   spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
 }
 function drawWeapon(){
+  // Star blaster viewmodel - NOT a lollipop. Only the crosshair is a lollipop.
   let sway=Math.sin(Date.now()/220)*8;
-  ctx.save();ctx.translate(480+sway,470+Math.abs(Math.sin(Date.now()/220))*5);
-  ctx.rotate(-.25);ctx.fillStyle="#fff";ctx.fillRect(-6,-70,12,90);
-  let g=ctx.createRadialGradient(0,-95,4,0,-95,48);g.addColorStop(0,"#fff");g.addColorStop(.4,"#ff7ab6");g.addColorStop(.75,"#ff2f86");g.addColorStop(1,"#b3125f");
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,-95,48,0,7);ctx.fill();
-  ctx.strokeStyle="#fff";ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,-95,30,0,7);ctx.stroke();
+  ctx.save();ctx.translate(480+sway,475+Math.abs(Math.sin(Date.now()/220))*5);
+  ctx.rotate(-.12);
+  ctx.fillStyle="#2a1030";ctx.fillRect(-10,-10,20,70);
+  ctx.fillStyle="#ff5fa2";ctx.fillRect(-10,-10,20,70);
+  ctx.fillStyle="#ffd84d";ctx.fillRect(-6,0,12,50);
+  let g=ctx.createRadialGradient(0,-55,4,0,-55,52);g.addColorStop(0,"#fff");g.addColorStop(.4,"#ffd84d");g.addColorStop(.75,"#ff7ab6");g.addColorStop(1,"#ff2f86");
+  ctx.fillStyle=g;ctx.beginPath();
+  for(let i=0;i<10;i++){let r=i%2?22:52,a=-Math.PI/2+i*Math.PI/5,x=Math.cos(a)*r,y=Math.sin(a)*r;if(i==0)ctx.moveTo(x,-55+y);else ctx.lineTo(x,-55+y);}
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,-55,10,0,7);ctx.fill();
   ctx.restore();
 }
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
