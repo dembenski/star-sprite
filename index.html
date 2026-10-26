@@ -56,8 +56,8 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
 <div class="card" style="background:#30183f">
-<h3>Blender Gizmo — Bit Layout Builder</h3>
-<p><small>Prompt → playable level here + Blender scene script. In Blender: Scripting → Open → Run Script. Or enable a local bridge on 127.0.0.1:8188.</small></p>
+<h3>Blender Gizmo — Bit, powered by Muse Wonder</h3>
+<p><small>Prompt → Muse Wonder designs a rich Blender world + a playable level here. Needs a saved Meta key for the Wonder design (about a cent or two of design text per world). No Meta key? It still works with the free local designer. In Blender: Scripting → Open → Run Script.</small></p>
 <div class="row">
 <input id="gizmoPrompt" size="55" placeholder="pink candy castle, maze left, boss arena right, forest entrance">
 <button id="gizmoGo">Create with Gizmo</button>
@@ -412,6 +412,236 @@ $("testBtn").onclick=()=>{let before=JSON.stringify(spec);normalize(spec);let p=
 let unreachable=0;spec.enemies.concat(spec.pickups).forEach(e=>{if(!seen.has(e.x+","+e.y))unreachable++});let win=spec.engine==="side"?true:seen.has(g.x+","+g.y);let dist=Math.abs(g.x-p.x)+Math.abs(g.y-p.y);
 $("testReport").innerHTML=`<b>Auto-playtest (report only — level unchanged: ${before===JSON.stringify(spec)})</b><br>Winnable: ${win?"YES":"NO"} · Est. time ${(dist*1.4).toFixed(1)}s · Deaths ${win?0:1} · Kills on path ${Math.min(spec.enemies.length,Math.ceil(dist/3))} · Unreachable areas: ${unreachable}<br>Verdict: ${win?"Looks fair and finishable — give it a play!":"The goal may be blocked; check walls in the editor."}`};
 
+// ---------- Star Sprite v5: Muse Wonder Blender Gizmo ----------
+async function llmMuseWonder(messages){
+  let key = localStorage.getItem("ff_key_meta");
+  if(!key) throw new Error("No saved Meta key. Save one at the top, or the Gizmo will use the free local designer.");
+  let r;
+  try{
+    r = await fetch("https://api.meta.ai/v1/chat/completions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"muse-wonder-1.0",messages:messages,temperature:0.85})
+    });
+  }catch(e){ throw new Error("Network failure: "+e.message); }
+  if(r.status===429) throw new Error("429 rate limit - wait a minute, your key is fine.");
+  if(r.status===401) throw new Error("401 bad Meta key - check the saved key.");
+  if(!r.ok) throw new Error("Meta provider error "+r.status);
+  let j = await r.json();
+  return j.choices[0].message.content;
+}
+async function museWonderBlenderPlan(prompt, baseSpec){
+  let sys = `You are Bit, the Star Sprite Blender Gizmo designer.
+Return ONLY valid JSON. No markdown. No Python. No code.
+Create a RICH, beautiful, original dessert-kawaii Blender scene plan.
+Make it much more detailed than a plain maze: use towers, roofs,
+trees, bridges, arches, crystals, mushrooms, lamps and decorations.
+Schema:
+{
+ "title":"short original title",
+ "theme":"Candy Kingdom",
+ "mood":"dreamy sunset / cheerful morning / magical night",
+ "palette":{"wall":"#ff7ab6","roof":"#ff2f86","ground":"#6b3550","accent":"#ffd84d","accent2":"#7be0d3"},
+ "wallStyle":"cake-brick / chocolate-wafer / mint-stripe / berry-stone",
+ "groundStyle":"checker / frosting-swirl / chocolate-path / sprinkle-meadow",
+ "lighting":"sunset / noon / night-glow / candy-dawn",
+ "camera":"hero angle / top-down map / close entrance",
+ "structures":[
+   {"type":"tower","x":3,"y":3,"height":5,"scale":1.4,"color":"#ff7ab6","roofColor":"#ff2f86"},
+   {"type":"arch","x":8,"y":5,"scale":1,"color":"#ffd84d"},
+   {"type":"tree","x":5,"y":8,"scale":1.2,"color":"#7be0d3"},
+   {"type":"crystal","x":12,"y":4,"scale":1,"color":"#9d7bff"},
+   {"type":"mushroom","x":10,"y":9,"scale":1,"color":"#ff9ec7"},
+   {"type":"lamp","x":7,"y":7,"scale":1,"color":"#ffd84d"},
+   {"type":"bridge","x":9,"y":6,"scale":1.5,"color":"#a66a3f"}
+ ],
+ "bossArena":true,
+ "detailLevel":9
+}
+Rules:
+- 10 to 28 structures
+- Coordinates must fit inside the map in the base spec
+- Original names only. No trademark names.
+- Colours must be hex colours like #ff7ab6
+- detailLevel 1-10`;
+  let txt = await llmMuseWonder([
+    {role:"system",content:sys},
+    {role:"user",content:"PROMPT: "+prompt+"\nBASE GAME SPEC: "+JSON.stringify(baseSpec)}
+  ]);
+  let plan = parseJSON(txt);
+  plan.structures = (plan.structures||[]).slice(0,28);
+  let allowed = ["tower","arch","tree","crystal","mushroom","lamp","bridge","dome","gate","rock-candy"];
+  plan.structures = plan.structures.filter(s=>allowed.includes(s.type));
+  plan.structures.forEach(s=>{
+    s.x = Math.max(1, Math.min(baseSpec.map[0].length-2, Math.floor(s.x||5)));
+    s.y = Math.max(1, Math.min(baseSpec.map.length-2, Math.floor(s.y||5)));
+    s.scale = Math.max(0.4, Math.min(3, +s.scale||1));
+    s.height = Math.max(1, Math.min(8, +s.height||3));
+    if(!/^#[0-9a-f]{6}$/i.test(s.color||"")) s.color="#ff7ab6";
+    if(!/^#[0-9a-f]{6}$/i.test(s.roofColor||"")) s.roofColor="#ff2f86";
+  });
+  plan.palette = plan.palette||{};
+  ["wall","roof","ground","accent","accent2"].forEach(k=>{
+    if(!/^#[0-9a-f]{6}$/i.test(plan.palette[k]||""))
+      plan.palette[k]={"wall":"#ff7ab6","roof":"#ff2f86","ground":"#6b3550","accent":"#ffd84d","accent2":"#7be0d3"}[k];
+  });
+  plan.detailLevel = Math.max(1,Math.min(10,plan.detailLevel||8));
+  plan.title = String(plan.title||baseSpec.title||"Star Sprite World").replace(/["\n\r]/g,"").slice(0,60);
+  plan.mood = String(plan.mood||"cheerful morning").replace(/["\n\r]/g,"").slice(0,60);
+  plan.wallStyle = String(plan.wallStyle||"cake-brick").replace(/[^A-Za-z0-9\-_]/g,"").slice(0,40);
+  plan.groundStyle = String(plan.groundStyle||"checker").replace(/[^A-Za-z0-9\-_]/g,"").slice(0,40);
+  return plan;
+}
+function localBlenderPlan(prompt,s){
+  return {
+    title:s.title, theme:s.theme, mood:"cheerful morning",
+    palette:{wall:"#ff7ab6",roof:"#ff2f86",ground:"#6b3550",accent:"#ffd84d",accent2:"#7be0d3"},
+    wallStyle:"cake-brick", groundStyle:"checker", lighting:"noon", camera:"hero angle",
+    structures:[
+      {type:"tower",x:3,y:3,height:5,scale:1.3,color:"#ff7ab6",roofColor:"#ff2f86"},
+      {type:"tree",x:13,y:4,height:3,scale:1.2,color:"#7be0d3",roofColor:"#ff2f86"},
+      {type:"arch",x:9,y:6,height:3,scale:1,color:"#ffd84d",roofColor:"#ff2f86"},
+      {type:"crystal",x:14,y:9,height:3,scale:1,color:"#9d7bff",roofColor:"#ff2f86"}
+    ],
+    bossArena:/boss/i.test(prompt), detailLevel:6
+  };
+}
+function hexRGB(hex){
+  let n=parseInt((hex||"#ff7ab6").slice(1),16);
+  return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];
+}
+function blenderScriptV2(s,plan){
+  let cubes = s.map.flatMap((r,y)=>[...r].map((c,x)=>
+    c==="#" ? `wall(${x},${-y},1)` : ""
+  ).filter(Boolean)).join("\n");
+  let structs = plan.structures.map(st=>
+    `build_${st.type.replace("-","_")}(${st.x},${-st.y},${st.height||3},${st.scale||1},"${st.color}","${st.roofColor||plan.palette.roof}")`
+  ).join("\n");
+  let foes = s.enemies.map(e=>
+    `enemy(${e.x},${-e.y},"${e.type}",${e.boss?1:0})`
+  ).join("\n");
+  let P = plan.palette;
+  let sun = plan.lighting==="night-glow" ? [0.4,0.3,0.9,1.2] :
+            plan.lighting==="sunset" ? [1,0.55,0.3,2.2] : [1,0.9,0.8,2.5];
+  let camZ = plan.camera==="top-down map" ? 30 : 16;
+  return `import bpy, math
+
+# Star Sprite Gizmo - designed by Bit
+# Scene: ${plan.title} | Mood: ${plan.mood} | Detail: ${plan.detailLevel}/10
+
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
+
+def mat(name, hexcol, rough=0.55, emit=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    c = tuple(int(hexcol[i:i+2],16)/255 for i in (1,3,5))
+    bsdf.inputs["Base Color"].default_value = (*c,1)
+    bsdf.inputs["Roughness"].default_value = rough
+    if emit>0:
+        bsdf.inputs["Emission Color"].default_value = (*c,1)
+        bsdf.inputs["Emission Strength"].default_value = emit
+    return m
+
+WALL  = mat("KawaiiWall_${plan.wallStyle}", "${P.wall}", 0.45)
+ROOF  = mat("CandyRoof", "${P.roof}", 0.35)
+GROUND= mat("Ground_${plan.groundStyle}", "${P.ground}", 0.8)
+ACC   = mat("Accent", "${P.accent}", 0.3, 0.4)
+MINT  = mat("MintGlow", "${P.accent2}", 0.3, 0.6)
+DARK  = mat("OutlineDark", "#2a1030", 0.7)
+
+def finish(o, material, bevel=0.06, smooth=False):
+    if material: o.data.materials.append(material)
+    if bevel>0:
+        mod=o.modifiers.new("SoftKawaiiEdge","BEVEL"); mod.width=bevel; mod.segments=2
+    if smooth:
+        for p in o.data.polygons: p.use_smooth=True
+    return o
+
+def wall(x,y,z):
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(x,y,z))
+    return finish(bpy.context.object, WALL, 0.08)
+
+def cube(x,y,z,sx,sy,sz,material):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(x,y,z))
+    o=bpy.context.object; o.scale=(sx,sy,sz); return finish(o,material,0.05)
+
+def build_tower(x,y,h,s,col,roof):
+    m=mat("Tower",col,0.4)
+    bpy.ops.mesh.primitive_cylinder_add(radius=1.1*s, depth=h, location=(x,y,h/2))
+    finish(bpy.context.object,m,0.03,True)
+    bpy.ops.mesh.primitive_cone_add(radius1=1.6*s, radius2=0, depth=2.2*s, location=(x,y,h+1.1*s))
+    finish(bpy.context.object,mat("TowerRoof",roof,0.3),0.03,True)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.28*s, location=(x,y,h+2.3*s))
+    finish(bpy.context.object,ACC,0,True)
+
+def build_tree(x,y,h,s,col,roof):
+    cube(x,y,0.8*s,0.35*s,0.35*s,1.6*s,mat("Trunk","#a66a3f",0.8))
+    for dx,dy,dz,ss in [(0,0,2.2,1.1),(-0.7,0,1.7,0.8),(0.7,0,1.8,0.85)]:
+        bpy.ops.mesh.primitive_ico_sphere_add(radius=ss*s, location=(x+dx*s,y+dy*s,dz*s))
+        finish(bpy.context.object,mat("MintLeaf",col,0.5),0,True)
+
+def build_arch(x,y,h,s,col,roof):
+    m=mat("Arch",col,0.35)
+    cube(x-1.1*s,y,1*s,0.5*s,0.5*s,2*s,m); cube(x+1.1*s,y,1*s,0.5*s,0.5*s,2*s,m)
+    cube(x,y,2.2*s,2.8*s,0.6*s,0.5*s,m)
+
+def build_crystal(x,y,h,s,col,roof):
+    bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=0.7*s, radius2=0, depth=2.4*s, location=(x,y,1.2*s))
+    finish(bpy.context.object,mat("CrystalGlow",col,0.15,1.2),0,True)
+
+def build_mushroom(x,y,h,s,col,roof):
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.35*s, depth=1.2*s, location=(x,y,0.6*s))
+    finish(bpy.context.object,mat("Stem","#fff0f7"),0,True)
+    bpy.ops.mesh.primitive_cone_add(radius1=1.1*s, radius2=0.1, depth=0.9*s, location=(x,y,1.6*s))
+    finish(bpy.context.object,mat("ShroomCap",col,0.4),0,True)
+
+def build_lamp(x,y,h,s,col,roof):
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.09*s, depth=2*s, location=(x,y,1*s))
+    finish(bpy.context.object,DARK,0,True)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.42*s, location=(x,y,2.2*s))
+    finish(bpy.context.object,mat("LampGlow",col,0.2,2.5),0,True)
+    bpy.ops.object.light_add(type='POINT', location=(x,y,2.2*s))
+    bpy.context.object.data.energy=180; bpy.context.object.data.color=(1,0.75,0.45)
+
+def build_bridge(x,y,h,s,col,roof):
+    cube(x,y,0.5,3.4*s,1.4*s,0.35*s,mat("Bridge",col,0.6))
+def build_dome(x,y,h,s,col,roof):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.5*s, location=(x,y,0.4))
+    o=bpy.context.object; o.scale=(1,1,0.65); finish(o,mat("Dome",col,0.25),0,True)
+def build_gate(x,y,h,s,col,roof): build_arch(x,y,h,s,col,roof)
+def build_rock_candy(x,y,h,s,col,roof): build_crystal(x,y,h,s,col,roof)
+
+def enemy(x,y,t,boss):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.5 if boss else 0.85, location=(x,y,1.1))
+    o=bpy.context.object; o.name=t; finish(o,ACC if boss else MINT,0,True)
+    for side in (-0.32,0.32):
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.14, location=(x+side,y-0.72,1.35))
+        finish(bpy.context.object,DARK,0,True)
+
+# --- World from the playable game map ---
+${cubes}
+${structs}
+${foes}
+
+# Boss arena ring
+${plan.bossArena ? `for i in range(12):
+    a=i/12*6.283
+    build_crystal(${s.goal.x}+3.2*math.cos(a), ${-s.goal.y}+3.2*math.sin(a), 3, 0.8, "${P.accent}", "${P.roof}")` : "# no boss arena"}
+
+# Ground, sun, camera
+bpy.ops.mesh.primitive_plane_add(size=120, location=(${Math.floor(s.map[0].length/2)},${-Math.floor(s.map.length/2)},0))
+finish(bpy.context.object, GROUND, 0)
+bpy.ops.object.light_add(type='SUN', location=(10,-8,20))
+sun=bpy.context.object; sun.data.energy=${sun[3]}; sun.data.color=(${sun[0]},${sun[1]},${sun[2]})
+bpy.ops.object.camera_add(location=(${Math.floor(s.map[0].length/2)},10,${camZ}))
+cam=bpy.context.object; cam.rotation_euler=(0.95,0,3.14159); bpy.context.scene.camera=cam
+bpy.context.scene.render.engine='BLENDER_EEVEE_NEXT'
+print("Star Sprite Gizmo built: ${plan.title}")
+`;
+}
+
 // ---------- Blender Gizmo ----------
 let lastBlenderPy="";
 function blenderScript(s){
@@ -434,34 +664,38 @@ bpy.ops.object.camera_add(location=(9,8,16));bpy.context.object.rotation_euler=(
 print("Star Sprite Gizmo built: ${s.title}")`;
 }
 let _gz=$("gizmoGo");if(_gz)_gz.onclick=async()=>{
- let p=$("gizmoPrompt").value||"candy castle maze";
- let s=genInstant(p,$("engineSel").value,$("diff").value,/boss/i.test(p));
- if(/castle/i.test(p))s.theme="Candy Kingdom";
- if(/forest|mint/i.test(p))s.theme="Berry Forest";
- if(/arena|boss/i.test(p)){
-   s.boss=true;
-   s.enemies.push({x:s.goal.x-1,y:s.goal.y,type:"Cocoa Knight",hp:18,boss:true});
- }
- loadSpec(s,"blender-gizmo",p);
- renderFeedAdd(p,"blender-gizmo");
- lastBlenderPy=blenderScript(spec);
- $("gizmoPy").value=lastBlenderPy;
- try{
-   await fetch("http://127.0.0.1:8188/build",{method:"POST",body:lastBlenderPy});
-   $("gizmoStatus").textContent="Sent to local Blender bridge + playable here!";
- }catch(e){
-   $("gizmoStatus").textContent="Playable here now. No local Blender bridge found — Download .py and Run Script in Blender.";
- }
- setTab("adv");
+  let p=$("gizmoPrompt").value||"candy castle maze";
+  $("gizmoStatus").textContent="Bit is asking Muse Wonder to design your Blender world...";
+  let s=genInstant(p,$("engineSel").value,$("diff").value,/boss/i.test(p));
+  let plan,source;
+  try{
+    plan=await museWonderBlenderPlan(p,s);
+    source="Muse Wonder";
+  }catch(e){
+    plan=localBlenderPlan(p,s);
+    source="free local designer";
+    $("gizmoStatus").textContent="Muse Wonder unavailable ("+e.message+") - used "+source+". Your level still works.";
+  }
+  s.title=plan.title||s.title;
+  s.theme=plan.theme||s.theme;
+  s.blenderPlan=plan;
+  if(plan.bossArena)s.boss=true;
+  loadSpec(s,"blender-gizmo",p);
+  renderFeedAdd(p,"blender-gizmo");
+  lastBlenderPy=blenderScriptV2(spec,plan);
+  $("gizmoPy").value=lastBlenderPy;
+  if(source==="Muse Wonder"){
+    $("gizmoStatus").innerHTML="Designed by <b>Muse Wonder</b> (Meta muse-wonder-1.0) - "+plan.structures.length+" structures, "+plan.mood+", detail "+plan.detailLevel+"/10. Playable here now. Download the .py or run it in Blender for the full 3D version.";
+  }
+  setTab("adv");
 };
 let _gd=$("gizmoDownload");if(_gd)_gd.onclick=()=>{
- if(!lastBlenderPy)lastBlenderPy=blenderScript(spec);
- let a=document.createElement("a");
- a.href=URL.createObjectURL(new Blob([lastBlenderPy],{type:"text/x-python"}));
- a.download="star-sprite-blender.py";
- a.click();
+  if(!lastBlenderPy)lastBlenderPy=blenderScriptV2(spec,spec.blenderPlan||localBlenderPlan("candy",spec));
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([lastBlenderPy],{type:"text/x-python"}));
+  a.download="star-sprite-blender.py";
+  a.click();
 };
-
 
 // ---------- Star Sprite v4: Blender import + Model Studio ----------
 let MODELS={};
