@@ -37,7 +37,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
 <select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
 <option value="mixed">Mixed (one Meta Muse Image wall + procedural, ~$0.01/level)</option>
-<option value="full">Full AI art (Meta, wall + up to 3 sprites, ~$0.04–0.05/level)</option></select>
+<option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC, ~$0.06/level)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, Instant levels, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key.</small></div></div>
@@ -433,7 +433,121 @@ function makeSpriteStyled(colour, boss){
   }
   return img;
 }
+
+// ---------- Star Sprite v10: real Meta images (not paint, not emoji) ----------
+// Text game = the provider you picked. Images = Meta only, only when YOU pick
+// Mixed / Full AI art with a saved Meta key. Never silent, never borrowed.
+const META_IMAGE_URL   = "https://api.meta.ai/v1/images/generations";
+const META_IMAGE_MODEL = "muse-image-1.0";
+let ART = {wall:null, floor:null, sprites:{}};
+let ART_TOKEN = 0;
+async function metaImage(prompt){
+  let key = localStorage.getItem("ff_key_meta");
+  if(!key) throw new Error("Meta images need a saved META key (top of page). The selected text provider was not used for art.");
+  let r;
+  try{
+    r = await fetch(META_IMAGE_URL,{method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:META_IMAGE_MODEL, prompt:prompt, response_format:"b64_json"})});
+  }catch(e){ throw new Error("Meta image network failure: "+e.message); }
+  if(r.status===401) throw new Error("Meta image 401 - bad Meta key.");
+  if(r.status===429) throw new Error("Meta image 429 - rate limit, wait a minute.");
+  if(r.status===404) throw new Error("Meta image 404 - model '"+META_IMAGE_MODEL+"' not enabled/name differs on your Meta account. Set META_IMAGE_MODEL to your account's image model. Game still plays with engine textures.");
+  if(!r.ok) throw new Error("Meta image error "+r.status+": "+(await r.text()).slice(0,160));
+  let j = await r.json();
+  let d = (j.data && j.data[0]) || j;
+  let src = d.url || (d.b64_json ? "data:image/webp;base64,"+d.b64_json : null) ||
+            (typeof d.image==="string" ? d.image : null);
+  if(!src) throw new Error("Meta image reply had no image URL/base64 (keys of reply: "+Object.keys(j).join(",")+").");
+  return await new Promise((res,rej)=>{
+    let img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload  = ()=>res(img);
+    img.onerror = ()=>rej(new Error("Meta returned an image URL but the browser could not load it (often CORS)."));
+    img.src = src;
+  });
+}
+function imgToCanvas(img,s){
+  s = s||256; let c=document.createElement("canvas"); c.width=c.height=s;
+  c.getContext("2d").drawImage(img,0,0,s,s); return c;
+}
+function chromaKey(img){
+  let c = imgToCanvas(img,256), x = c.getContext("2d");
+  let d = x.getImageData(0,0,256,256);
+  for(let i=0;i<d.data.length;i+=4){
+    let r=d.data[i], g=d.data[i+1], b=d.data[i+2];
+    if(r>180 && b>180 && g<110) d.data[i+3]=0;
+    else if(r>150 && b>150 && g<140) d.data[i+3]=120;
+  }
+  x.putImageData(d,0,0); return c;
+}
+async function buildMetaArtPack(spec, onStatus){
+  let my = ++ART_TOKEN;
+  let mode = $("artMode").value;
+  let st = spec.artStyle || "scifi";
+  let game = (spec.title||"") + ", " + (spec.theme||"");
+  let jobs = [];
+  jobs.push(["wall texture", async()=>{
+    ART.wall = imgToCanvas(await metaImage(
+      "Seamless tileable video game WALL texture, "+st+" style, "+game+
+      ", front-on flat texture only, no characters, no text, no perspective, PSX retro game texture, detailed panels and weathering"),256);
+  }]);
+  if(mode==="full"){
+    jobs.push(["floor texture", async()=>{
+      ART.floor = imgToCanvas(await metaImage(
+        "Seamless tileable video game FLOOR texture, top-down flat, "+st+" style, "+game+
+        ", no characters, no text, no perspective, PSX retro game texture"),256);
+    }]);
+    let types = [...new Set((spec.enemies||[]).map(e=>e.type))].slice(0,3);
+    types.forEach(t=>{
+      jobs.push(["sprite: "+t, async()=>{
+        ART.sprites[t] = chromaKey(await metaImage(
+          "Full-body 2D game enemy sprite, one character only, '"+t+"', "+st+" style, "+game+
+          ", cute-but-tough original design, front view, standing on a SOLID PURE MAGENTA #FF00FF background, no text, no other characters, retro PSX game sprite"));
+      }]);
+    });
+    jobs.push(["NPC sprite", async()=>{
+      ART.sprites["__npc"] = chromaKey(await metaImage(
+        "Full-body friendly 2D game NPC sprite, one original character, "+st+" style, "+game+
+        ", front view, SOLID PURE MAGENTA #FF00FF background, no text, retro PSX game sprite"));
+    }]);
+  }
+  let done=0, failed=[];
+  for(let [name, job] of jobs){
+    try{ await job(); done++; }
+    catch(e){ failed.push(name+": "+e.message); }
+    if(my!==ART_TOKEN) return {done, total:jobs.length, failed:["superseded by a newer level"]};
+    if(onStatus) onStatus(done, jobs.length, failed);
+    draw();
+  }
+  return {done, total:jobs.length, failed};
+}
+function startMetaArt(prov){
+  let mode = $("artMode").value;
+  if(mode==="painted"){
+    $("status").innerHTML += "<br><small>Art: Painted (engine). Pick Mixed/Full AI art + save a Meta key for real Meta images.</small>";
+    return;
+  }
+  if(!localStorage.getItem("ff_key_meta")){
+    $("status").innerHTML += '<br><span class="err">No Meta key saved, so no Meta images. Engine textures used instead — the game itself is fine.</span>';
+    return;
+  }
+  $("status").innerHTML += "<br><small>Asking Meta for real images (wall"+(mode==="full" ? ", floor, enemy sprites, NPC" : "")+")...</small>";
+  let mySpec = spec;
+  buildMetaArtPack(spec,(done,total,failed)=>{
+    if(spec!==mySpec) return;
+    let who = prov.id==="groq" ? "Text by Groq, Images: Meta (you selected Meta art). " : "";
+    $("status").innerHTML =
+      '<span class="ok">Now showing: <b>'+spec.title+'</b></span><br><small>'+
+      who+"Meta images loaded: "+done+"/"+total+
+      (failed.length ? ' &nbsp;<span class="err">Fallback kept for: '+failed.join(" · ")+"</span>"
+                     : " — walls, floor and bad guys are now Meta images, not paint.")+
+      "</small>";
+  });
+}
+
 function spriteFor(e){
+  if(ART.sprites[e.type]) return ART.sprites[e.type];
   let st=STYLES[spec.artStyle]||STYLES.scifi;
   let h=0; for(let ch of (e.type||"Guard")) h=(h*31+ch.charCodeAt(0))%997;
   if(e._img && e._imgStyle===spec.artStyle && e._img instanceof HTMLCanvasElement) return e._img;
@@ -442,6 +556,7 @@ function spriteFor(e){
   return e._img;
 }
 function spriteForNPC(n){
+  if(ART.sprites["__npc"]) return ART.sprites["__npc"];
   if(n._img && n._imgStyle===spec.artStyle && n._img instanceof HTMLCanvasElement) return n._img;
   n._img = makeSpriteStyled("#e8e8f0", false);
   n._imgStyle = spec.artStyle;
@@ -459,6 +574,7 @@ const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
 function loadSpec(s,src,promptText){
+  ART.wall=null; ART.floor=null; ART.sprites={}; ART_TOKEN++; window.ART=ART;
   let before = spec ? specHash(spec) : "none";
   let fresh;
   try{ fresh = repair(s); }
@@ -535,8 +651,9 @@ function drawFPS(){
   // band, so any bright pixel in that slice became a vertical dashed line
   // across the whole sky/floor. Full-texture draws fix that.
   let _st = STYLES[spec.artStyle]||STYLES.scifi;
-  if(spec.artStyle==="kawaii"){ for(let tx=0;tx<w;tx+=64){B.drawImage(TEX_SKY,0,0,64,64,tx,0,64,h/2);B.drawImage(TEX_FLOOR,0,0,64,64,tx,h/2,64,h/2);} }
-  else { B.fillStyle=_st.sky; B.fillRect(0,0,w,h/2); for(let tx=0;tx<w;tx+=64){B.drawImage(texFor("floor"),0,0,64,64,tx,h/2,64,h/2);} }
+  let _floorImg = ART.floor || (spec.artStyle==="kawaii" ? TEX_FLOOR : texFor("floor"));
+  if(spec.artStyle==="kawaii"){ for(let tx=0;tx<w;tx+=64){B.drawImage(TEX_SKY,0,0,64,64,tx,0,64,h/2);B.drawImage(_floorImg,tx,h/2,64,h/2);} }
+  else { B.fillStyle=_st.sky; B.fillRect(0,0,w,h/2); for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);} }
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
   for(let col=0;col<w;col++){
@@ -551,6 +668,7 @@ function drawFPS(){
     // different colour, which is why the walls looked random and weird.
     let texImg,texW=64;
     if(window.CUSTOM_WALL){texImg=window.CUSTOM_WALL;texW=256;}
+    else if(ART.wall){texImg=ART.wall;texW=256;}
     else texImg=texFor("wall");
     B.drawImage(texImg,Math.floor(tex*texW),0,1,texW,col,h/2-wh/2,1,wh);
     let fog=Math.min(.75,correct/16);
@@ -595,9 +713,9 @@ function drawWeapon(){
   ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,-55,10,0,7);ctx.fill();
   ctx.restore();
 }
-function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
+function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"&&ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}}));
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th)}
-function drawSide(){ctx.fillStyle=(STYLES[spec.artStyle]||STYLES.scifi).sky;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts)}
+function drawSide(){ctx.fillStyle=(STYLES[spec.artStyle]||STYLES.scifi).sky;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:TEX_WALL;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts)}
 // True 3D — separate WebGL canvas, raw WebGL, no libraries
 let GLC=$("gameGL"), gl=GLC?GLC.getContext("webgl"):null, prog, uM, uC, aP, cubeBuf;
 function initGL(){
@@ -1161,19 +1279,12 @@ $("generate").onclick = async ()=>{
   let prov = selectedProvider();
   let beforeTitle = spec ? spec.title : "(none)";
   $("status").textContent = "Generating with "+prov.label+" ("+prov.model+") ONLY - no other provider...";
-  if(prov.id==="groq" && $("artMode").value!=="painted"){
-    $("artMode").value="painted";
-    $("status").textContent += " Art set to Painted: Groq designs, the engine paints. Meta art needs the Meta provider.";
-  }
-  if(prov.id==="meta" && $("artMode").value!=="painted" && !localStorage.getItem("ff_key_meta")){
-    $("status").innerHTML = '<span class="err">Meta art needs a saved Meta key. Set Art to Painted, or save a Meta key. Nothing generated yet.</span>';
-    return;
-  }
   try{
     let s = await aiGenerate(prov);
     loadSpec(s, "ai-"+prov.id, $("prompt").value);
     renderFeedAdd($("prompt").value, "ai-"+prov.id);
     $("status").innerHTML = '<span class="ok">Generated by <b>'+prov.label+' ('+prov.model+')</b> alone &amp; now showing: <b>'+spec.title+'</b></span><br><small>Was: '+beforeTitle+' -&gt; Now: '+spec.title+' · '+spec.map[0].length+'x'+spec.map.length+' map</small>';
+    startMetaArt(prov);
   }catch(e){
     $("status").innerHTML = '<span class="err">'+prov.label+' attempt failed: '+e.message+' Retrying ONCE with '+prov.label+' only...</span>';
     try{
@@ -1181,11 +1292,13 @@ $("generate").onclick = async ()=>{
       loadSpec(s, "ai-"+prov.id+"-retry", $("prompt").value);
       renderFeedAdd($("prompt").value, "ai-"+prov.id+"-retry");
       $("status").innerHTML = '<span class="ok">Generated by '+prov.label+' on retry &amp; now showing: <b>'+spec.title+'</b></span>';
+      startMetaArt(prov);
     }catch(e2){
       let s = genInstant($("prompt").value, $("engineSel").value, $("diff").value, $("boss").checked);
       loadSpec(s, "fallback-local", $("prompt").value);
       renderFeedAdd($("prompt").value, "fallback-local");
       $("status").innerHTML += '<br><span class="err">'+prov.label+' failed twice ('+e2.message+'). A brand-new local Instant level is showing instead - NOT the demo, and the other provider was not used.</span>';
+      if($("artMode").value!=="painted") $("status").innerHTML += "<br><small>Art: fallback level stays painted — Meta images run only on a successful AI generate.</small>";
     }
   }
 };
