@@ -187,30 +187,134 @@ function demoSpec(){let m=blankMap(20,14);[[3,3],[4,3],[5,3],[8,5],[11,3],[12,8]
 return{title:"Cupcake Rescue — Demo",theme:THEMES[0],artStyle:"kawaii",engine:"fps",difficulty:"Normal",boss:false,quest:"★ WOW DEMO: Rescue the Lemon Star! 3-at-a-time waves, boss at the goal!",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:18,y:12},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3},{x:14,y:3,type:ROSTER[2],hp:2},{x:5,y:10,type:ROSTER[3],hp:3},{x:12,y:10,type:ROSTER[0],hp:2},{x:16,y:6,type:ROSTER[1],hp:3},{x:8,y:6,type:ROSTER[2],hp:2},{x:3,y:11,type:ROSTER[3],hp:3},{x:17,y:12,type:"Cocoa Knight",hp:18,boss:true}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"},{x:15,y:10,kind:"treat"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2},{id:"n2",name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler! Waves come three at a time.",x:9,y:2},{id:"n3",name:"Berry",persona:"brave scout",greeting:"The boss guards the goal. You can do this!",x:14,y:11}]}}
 function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];s.props=s.props||[];return s}
 function find(s,c){for(let y=0;y<s.map.length;y++)for(let x=0;x<s.map[y].length;x++)if(s.map[y][x]==c)return{x,y};return null}
-function repair(s){s=normalize(JSON.parse(JSON.stringify(s)));let h=s.map.length,w=s.map[0].length;
-for(let x=0;x<w;x++){s.map[0][x]="#";s.map[h-1][x]="#"}for(let y=0;y<h;y++){s.map[y][0]="#";s.map[y][w-1]="#"}
-if(!find(s,'P')){s.map[1][1]='P'} if(!find(s,'G')){s.map[h-2][w-2]='G'}
-let p=find(s,'P'),g=find(s,'G');s.playerStart=p;s.goal=g;s.map[p.y][p.x]='P';
-s.enemies=s.enemies.filter(e=>e.x>0&&e.y>0&&e.x<w-1&&e.y<h-1).slice(0,s.boss?31:30);s.enemies.forEach(e=>{if(!e.type || typeof e.type!=="string") e.type="Guard"; e.type=e.type.slice(0,28); e.hp=e.hp||2});
-if(s.boss&&!s.enemies.some(e=>e.boss))s.enemies.push({x:g.x-1,y:g.y,type:"Cocoa Knight",hp:18,boss:true});
-if(s.engine!=="side"){ // flood-fill reachability; carve L corridor if goal unreachable
- let seen=new Set(),q=[p];seen.add(p.x+","+p.y);while(q.length){let c=q.pop();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let nx=c.x+dx,ny=c.y+dy,k=nx+","+ny;if(s.map[ny]&&s.map[ny][nx]!=="#"&&!seen.has(k)){seen.add(k);q.push({x:nx,y:ny})}})}
- if(!seen.has(g.x+","+g.y)){for(let x=Math.min(p.x,g.x);x<=Math.max(p.x,g.x);x++)if(s.map[p.y][x]!=="P")s.map[p.y][x]=".";for(let y=Math.min(p.y,g.y);y<=Math.max(p.y,g.y);y++)if(s.map[y][g.x]!=="G")s.map[y][g.x]="."}}
-return s}
-function validate(s){try{s=normalize(s);if(!s.map||s.map.length<6||s.map[0].length<6)return"map too small";if(!find(s,'P'))return"no player start";if(!find(s,'G'))return"no goal";if(s.enemies.length>31)return"enemy cap exceeded";return null}catch(e){return e.message}}
+function asRows(map){
+  if(!Array.isArray(map)) return null;
+  let rows = map.map(r=>{
+    let s = typeof r==="string" ? r : Array.isArray(r) ? r.join("") : "";
+    return s.replace(/[^#\.DPGE\* ]/g,"#").replace(/ /g,".");
+  }).filter(r=>r.length>=5);
+  if(rows.length<5) return null;
+  let w = Math.max(...rows.map(r=>r.length));
+  return rows.map(r=>(r+"#".repeat(w)).slice(0,w).split(""));
+}
+function repair(s){
+  s = JSON.parse(JSON.stringify(s||{}));
+  let rows = asRows(s.map);
+  if(!rows){
+    let g = genInstant(s.title||"Generated Adventure", s.engine||"fps", s.difficulty||"Normal", !!s.boss);
+    rows = asRows(g.map); s.quest = s.quest||g.quest;
+    s.enemies = s.enemies||g.enemies; s.pickups = s.pickups||g.pickups; s.npcs = s.npcs||g.npcs;
+  }
+  s.map = rows;
+  let h=s.map.length, w=s.map[0].length;
+  for(let x=0;x<w;x++){s.map[0][x]="#";s.map[h-1][x]="#";}
+  for(let y=0;y<h;y++){s.map[y][0]="#";s.map[y][w-1]="#";}
+  if(!find(s,'P')) s.map[1][1]="P";
+  if(!find(s,'G')) s.map[h-2][w-2]="G";
+  s.playerStart = find(s,'P'); s.goal = find(s,'G');
+  s.enemies = (Array.isArray(s.enemies)?s.enemies:[]).filter(e=>e&&isFinite(e.x)&&isFinite(e.y))
+    .slice(0,31).map(e=>({x:Math.max(1,Math.min(w-2,Math.floor(e.x))), y:Math.max(1,Math.min(h-2,Math.floor(e.y))),
+      type:(typeof e.type==="string"&&e.type.trim()?e.type.trim().slice(0,28):"Guard"), hp:Math.max(1,Math.min(30,e.hp||3)), boss:!!e.boss}));
+  if(s.boss && !s.enemies.some(e=>e.boss))
+    s.enemies.push({x:Math.max(1,s.goal.x-1), y:s.goal.y, type:"Boss Guard", hp:18, boss:true});
+  s.pickups = (Array.isArray(s.pickups)?s.pickups:[]).filter(e=>e&&isFinite(e.x)&&isFinite(e.y)).slice(0,20)
+    .map(e=>({x:Math.floor(e.x),y:Math.floor(e.y),kind:e.kind||"treat"}));
+  s.npcs = (Array.isArray(s.npcs)?s.npcs:[]).slice(0,6).map((n,i)=>({
+    id:n.id||"n"+i, name:(n.name||"Guide").slice(0,24), persona:(n.persona||"helpful local").slice(0,60),
+    greeting:(n.greeting||"Well met, hero!").slice(0,140),
+    x:Math.max(1,Math.min(w-2,Math.floor(n.x||2))), y:Math.max(1,Math.min(h-2,Math.floor(n.y||2)))}));
+  if(s.engine!=="side"){
+    let p=s.playerStart, seen=new Set(), q=[p]; seen.add(p.x+","+p.y);
+    while(q.length){let c=q.pop();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+      let nx=c.x+dx,ny=c.y+dy,k=nx+","+ny;
+      if(s.map[ny]&&s.map[ny][nx]!=="#"&&!seen.has(k)){seen.add(k);q.push({x:nx,y:ny});}});}
+    if(!seen.has(s.goal.x+","+s.goal.y)){
+      for(let x=Math.min(p.x,s.goal.x);x<=Math.max(p.x,s.goal.x);x++) if(s.map[p.y][x]!=="P") s.map[p.y][x]=".";
+      for(let y=Math.min(p.y,s.goal.y);y<=Math.max(p.y,s.goal.y);y++) if(s.map[y][s.goal.x]!=="G") s.map[y][s.goal.x]=".";
+    }
+  }
+  s.map = s.map.map(r=>r.join(""));
+  s.title = (s.title||"Generated Adventure").slice(0,60);
+  return s;
+}
+function validate(s){
+  if(!s || !Array.isArray(s.map) || s.map.length<5) return "map missing after repair";
+  return null;
+}
 function genInstant(prompt,eng,diff,boss){let s=demoSpec();s.engine=eng;s.difficulty=diff;s.boss=boss;s.title=(prompt||"Instant Adventure").slice(0,48);s.theme=THEMES[Math.floor(Math.random()*THEMES.length)];s.artStyle=inferStyle(prompt, $("styleSel")?$("styleSel").value:"auto");
 s.map=blankMap(18,13);for(let i=0;i<16;i++){let x=1+Math.random()*16|0,y=1+Math.random()*11|0;if((x>3||y>3))s.map[y][x]="#"}s.map[1][1]="P";s.map[11][16]="G";
 s.enemies=Array.from({length:diff==="Insane"?12:diff==="Hard"?9:diff==="Easy"?4:6},(_,i)=>({x:2+Math.random()*14|0,y:2+Math.random()*9|0,type:ROSTER[i%4],hp:2+i%3}));return repair(s)}
 // ---------- providers ----------
-const PROVIDERS={meta:{url:"https://api.meta.ai/v1/chat/completions",model:"muse-wonder-1.0"},groq:{url:"https://api.groq.com/openai/v1/chat/completions",model:"openai/gpt-oss-20b"}};
-$("provider").value=localStorage.getItem("ff_provider")||"meta";$("apiKey").value=localStorage.getItem("ff_key_"+$("provider").value)||"";
-$("provider").onchange=()=>{localStorage.setItem("ff_provider",$("provider").value);$("apiKey").value=localStorage.getItem("ff_key_"+$("provider").value)||""};
-$("saveKey").onclick=()=>{localStorage.setItem("ff_key_"+$("provider").value,$("apiKey").value.trim());$("keyStatus").textContent="Key saved only in this browser."};
-$("clearKey").onclick=()=>{localStorage.removeItem("ff_key_"+$("provider").value);$("apiKey").value=""};
-async function llm(messages){let p=PROVIDERS[$("provider").value],key=localStorage.getItem("ff_key_"+$("provider").value);if(!key)throw new Error("No key saved — use Instant level, demo, editor or shared links without a key.");
-let r;try{r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},body:JSON.stringify({model:p.model,messages,temperature:.8})})}catch(e){throw new Error("Network failure: "+e.message)}
-if(r.status===429)throw new Error("429 free-tier rate limit — wait a minute, your key is fine.");if(r.status===401)throw new Error("401 bad key — check the key for this provider.");if(!r.ok)throw new Error("Provider error "+r.status);
-let j=await r.json();return j.choices[0].message.content}
+// ---------- providers: locked, one at a time ----------
+const PROVIDERS={
+  meta:{label:"Meta AI (Recommended)", url:"https://api.meta.ai/v1/chat/completions", model:"muse-wonder-1.0", keySlot:"ff_key_meta"},
+  groq:{label:"Groq (Free backup)",    url:"https://api.groq.com/openai/v1/chat/completions", model:"openai/gpt-oss-20b", keySlot:"ff_key_groq"}
+};
+function selectedProvider(){
+  let id = $("provider").value;
+  return {id, ...PROVIDERS[id]};
+}
+async function llmProvider(prov, messages){
+  let key = localStorage.getItem(prov.keySlot);
+  if(!key) throw new Error("No "+prov.label+" key saved. Save YOUR "+prov.label+" key above, or use Instant (no key). The other provider will NOT be used automatically.");
+  let r;
+  try{
+    r = await fetch(prov.url,{method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:prov.model, messages, temperature:.85})});
+  }catch(e){ throw new Error(prov.label+" network failure: "+e.message); }
+  if(r.status===429) throw new Error(prov.label+" 429 rate limit - wait a minute, key is fine.");
+  if(r.status===401) throw new Error(prov.label+" 401 bad key - this is the key saved for "+prov.label+". Check it, the other provider's key does not work here.");
+  if(!r.ok) throw new Error(prov.label+" error "+r.status+": "+(await r.text()).slice(0,160));
+  let j = await r.json();
+  let txt = j.choices?.[0]?.message?.content;
+  if(!txt) throw new Error(prov.label+" returned an empty reply (not a network failure).");
+  return txt;
+}
+$("provider").value=localStorage.getItem("ff_provider")||"meta";
+$("apiKey").value=localStorage.getItem(selectedProvider().keySlot)||"";
+$("saveKey").onclick=()=>{
+  let p=selectedProvider();
+  localStorage.setItem(p.keySlot, $("apiKey").value.trim());
+  $("keyStatus").textContent="Saved key for "+p.label+" only, in this browser only.";
+};
+$("clearKey").onclick=()=>{
+  let p=selectedProvider();
+  localStorage.removeItem(p.keySlot); $("apiKey").value="";
+  $("keyStatus").textContent="Cleared key for "+p.label+".";
+};
+$("provider").onchange=()=>{
+  let p=selectedProvider();
+  localStorage.setItem("ff_provider", p.id);
+  $("apiKey").value = localStorage.getItem(p.keySlot)||"";
+  $("keyStatus").textContent = localStorage.getItem(p.keySlot)
+    ? p.label+" key loaded from this browser."
+    : "No "+p.label+" key saved yet - Generate will say so, it will not borrow the other provider.";
+};
+async function aiGenerate(prov, extra){
+  let prompt = $("prompt").value;
+  let sys = `Return ONLY valid JSON, no markdown fences, no commentary.
+{"title":"original title","theme":"short theme","artStyle":"kawaii|scifi|dungeon|spooky|toy|wildwest|pirate|city",
+"quest":"one sentence","map":["########","#P.....#","#......#","########"],
+"enemies":[{"x":3,"y":2,"type":"original enemy name","hp":3}],
+"pickups":[{"x":4,"y":3,"kind":"treat"}],
+"npcs":[{"id":"n1","name":"Guide","persona":"helpful local","greeting":"Well met!","x":2,"y":2}]}
+Rules: map 14-20 wide, 10-14 rows, every row the SAME length, # border all round,
+exactly one P and one G, only characters # . P G D. 4-10 enemies inside the walls.
+artStyle matches the prompt - kawaii ONLY if the prompt asks for cute/candy/dessert.
+Original names only, no trademark names.`;
+  let txt = await llmProvider(prov, [
+    {role:"system", content:sys},
+    {role:"user", content:"Create this game: "+prompt+
+      "\nEngine: "+$("engineSel").value+" Difficulty: "+$("diff").value+" Boss: "+$("boss").checked+
+      (extra ? "\nIMPORTANT FIX FROM LAST ATTEMPT: "+extra : "")+
+      "\nMake it clearly different from previous levels. Variation seed: "+Date.now()}
+  ]);
+  let s = parseJSON(txt);
+  s.engine = $("engineSel").value; s.difficulty = $("diff").value; s.boss = $("boss").checked;
+  if(typeof inferStyle==="function") s.artStyle = inferStyle(prompt, $("styleSel")?.value||"auto");
+  return repair(s);
+}
 function parseJSON(t){try{return JSON.parse(t.replace(/```json|```/g,"").trim())}catch(e){throw new Error("JSON parse failure (not a network failure): "+e.message)}}
 async function aiGenerate(retryNote){let sys=`Return ONLY JSON spec:
 {title,theme,artStyle,engine,difficulty,boss,quest,map:[strings using # . D P G],
@@ -221,7 +325,7 @@ unless the prompt asks for cute/candy/dessert.
 Invent original enemy type names that fit the prompt's genre
 (e.g. "Rust Drone", "Crypt Ghoul", "Reef Raider"). No trademark names.
 Original world, names and layouts only.`;
-let txt=await llm([{role:"system",content:sys},{role:"user",content:$("prompt").value+" Engine:"+$("engineSel").value+(retryNote?" Fix: "+retryNote:"")}]);let s=repair(parseJSON(txt));let v=validate(s);if(v)throw new Error(v);return s}
+let txt=await llmProvider(selectedProvider(), [{role:"system",content:sys},{role:"user",content:$("prompt").value+" Engine:"+$("engineSel").value+(retryNote?" Fix: "+retryNote:"")}]);let s=repair(parseJSON(txt));let v=validate(s);if(v)throw new Error(v);return s}
 // ---------- art / audio ----------
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
 let musicTimer=null;function startMusic(){if(musicTimer)return;let scales={"Candy Kingdom":[523,587,659,784],"Sugar Dungeon":[220,261,293,329],"Berry Forest":[392,440,523,587],"Chocolate Vault":[196,220,261,293],"Lemon Sky":[587,659,784,880]};let i=0;musicTimer=setInterval(()=>{if($("musicOn").checked&&playing){let sc=scales[spec?.theme]||scales["Candy Kingdom"];beep(sc[i%4],.25,"triangle");if(i%2==0)beep(sc[0]/2,.3,"sine");i++}},420)}
@@ -355,34 +459,27 @@ const PLAYERSPRITE=SPRITES["Sprinkle Imp"];
 // ---------- game state ----------
 let G=null;
 function loadSpec(s,src,promptText){
-  let oldHash = spec ? specHash(spec) : "";
+  let before = spec ? specHash(spec) : "none";
   let fresh;
-  try { fresh = repair(JSON.parse(JSON.stringify(s))); } catch(e){
-    fresh = demoSpec();
-    $("status").innerHTML = '<span class="err">Generated level was broken ('+e.message+') — demo loaded instead.</span>';
+  try{ fresh = repair(s); }
+  catch(e){ fresh = repair(genInstant(promptText||"Recovered Adventure", $("engineSel").value, $("diff").value, $("boss").checked)); }
+  if(before!=="none" && before===specHash(fresh) && src!=="demo"){
+    let keepTitle = fresh.title;
+    fresh = repair(genInstant(keepTitle+" - Remix "+new Date().toLocaleTimeString(), fresh.engine, fresh.difficulty, fresh.boss));
+    fresh.title = keepTitle;
   }
-  let v = validate(fresh);
-  if(v){
-    fresh = demoSpec();
-    $("status").innerHTML = '<span class="err">Invalid generated level ('+v+') — demo loaded instead.</span>';
-  }
-  spec = fresh;
-  window.spec = spec;
-  if(oldHash && oldHash === specHash(spec) && src !== "demo"){
-    spec = genInstant(promptText || spec.title, spec.engine, spec.difficulty, spec.boss);
-  }
-  spec.map = spec.map.map(r=>Array.isArray(r)?r.join(""):r);
-  if(typeof refreshPropSelect==="function")refreshPropSelect();
-  $("specBox").value = JSON.stringify(spec, null, 1);
-  $("quest").textContent = "Quest: " + (spec.quest || "Reach ★");
+  spec = fresh; window.spec = spec;
+  $("specBox").value = JSON.stringify(spec,null,1);
+  $("quest").textContent = "Quest: " + (spec.quest||"Reach the goal ★");
   document.title = spec.title + " — Star Sprite";
   drawEditor();
-  resetGame();
-  draw();
+  if(typeof refreshPropSelect==="function")refreshPropSelect();
+  resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
-  $("hud").textContent = "NEW LEVEL LOADED: " + spec.title + " · " + spec.engine + " · " + hudText();
+  $("hud").textContent = "NEW LEVEL LOADED: "+spec.title+" · "+spec.engine+" · "+hudText();
   $("game").scrollIntoView({behavior:"smooth", block:"center"});
   showBest();
+  console.log("[StarSprite] loaded:", src, spec.title, "hash", before, "->", specHash(spec));
 }
 function resetGame(){
   normalize(spec);
@@ -611,11 +708,11 @@ $("copySpec").onclick=()=>navigator.clipboard.writeText($("specBox").value);$("p
 function npcLines(a){let open=["Well met","Sweet day","Ah, a hero","Greetings","Come closer"],mid=["the ovens hum with old magic","sprinkles drift like snow","the Lemon Star glows beyond the gate","custard guardians patrol at dusk","every crumb tells a story"],ask=["What is your name, hero?","Have you seen the goal?","Shall I mark your map in sugar?","Do you seek treats or truth?","The boss fears bright frosting."];let out=[];open.forEach(o=>mid.forEach(m=>ask.forEach(q=>out.push(`${o}! As a ${a}, I say: ${m}. ${q}`))));return out}
 let npcMem=JSON.parse(localStorage.getItem("ff_npcMem")||"{}");
 $("npcSend").onclick=async()=>{let n=spec.npcs[0];if(!n){$("npcLog").textContent="No NPC in this level — add one in the editor.";return}let msg=$("npcInput").value;let nameMatch=msg.match(/my name is (\w+)/i);if(nameMatch)npcMem.name=nameMatch[1];npcMem.topics=npcMem.topics||[];npcMem.topics.push(msg);localStorage.setItem("ff_npcMem",JSON.stringify(npcMem));
-try{if(localStorage.getItem("ff_key_"+$("provider").value)){let r=await llm([{role:"system",content:`You are ${n.name}, ${n.persona}. Stay in character, 2 sentences. Remember: ${JSON.stringify(npcMem)}`},{role:"user",content:msg}]);$("npcLog").textContent=n.name+": "+r;return}}catch(e){}
+try{if(localStorage.getItem(selectedProvider().keySlot)){let r=await llmProvider(selectedProvider(), [{role:"system",content:`You are ${n.name}, ${n.persona}. Stay in character, 2 sentences. Remember: ${JSON.stringify(npcMem)}`},{role:"user",content:msg}]);$("npcLog").textContent=n.name+": "+r;return}}catch(e){}
 let lines=npcLines(n.persona);$("npcLog").textContent=n.name+": "+(npcMem.name?`I remember you, ${npcMem.name}. `:"")+lines[(msg.length+npcMem.topics.length)%lines.length]};
 // ---------- Bit conversational editing + Remix ----------
 async function bitEdit(instr){let old=JSON.stringify(spec);bitCtx.push(instr);
-try{if(localStorage.getItem("ff_key_"+$("provider").value)){let txt=await llm([{role:"system",content:"Revise this game spec JSON per instruction. Return ONLY full JSON."},{role:"user",content:"SPEC:"+old+"\nINSTRUCTION:"+instr+"\nHISTORY:"+bitCtx.join(" | ")}]);let s=repair(parseJSON(txt));if(validate(s))throw new Error(validate(s));loadSpec(s,"bit");$("bitLog").textContent="Bit: Applied — "+instr;return}
+try{if(localStorage.getItem(selectedProvider().keySlot)){let txt=await llmProvider(selectedProvider(), [{role:"system",content:"Revise this game spec JSON per instruction. Return ONLY full JSON."},{role:"user",content:"SPEC:"+old+"\nINSTRUCTION:"+instr+"\nHISTORY:"+bitCtx.join(" | ")}]);let s=repair(parseJSON(txt));if(validate(s))throw new Error(validate(s));loadSpec(s,"bit");$("bitLog").textContent="Bit: Applied — "+instr;return}
 snapshot();let s=JSON.parse(old);if(/add enemy/i.test(instr))s.enemies.push({x:3,y:3,type:ROSTER[0],hp:3});else if(/add npc/i.test(instr))s.npcs.push({id:"n"+Date.now(),name:"Mochi",persona:"wise guide",greeting:"Hello!",x:2,y:2});else if(/boss/i.test(instr)){s.boss=true}else if(/clear center/i.test(instr)){s.map[5][5]="."}else throw new Error("Bit could not apply that offline — try 'add enemy', 'add npc', 'make boss', or add a key for full editing.");
 loadSpec(repair(s),"bit");$("bitLog").textContent="Bit: Applied — "+instr}catch(e){$("bitLog").textContent="Bit: Kept your current level. Reason: "+e.message}}
 $("bitSend").onclick=()=>bitEdit($("bitInput").value);$("remix").onclick=()=>bitEdit("Remix this level with a fresh twist, same engine");
@@ -880,7 +977,11 @@ let _gz=$("gizmoGo");if(_gz)_gz.onclick=async()=>{
   $("gizmoStatus").textContent="Bit is asking Muse Wonder to design your Blender world...";
   let s=genInstant(p,$("engineSel").value,$("diff").value,/boss/i.test(p));
   let plan,source;
-  try{
+  if($("provider").value!=="meta"){
+    plan=localBlenderPlan(p,s);
+    source="free local designer";
+    $("gizmoStatus").textContent="Gizmo design is Meta-only - provider is "+selectedProvider().label+", so used free local designer. Switch provider to Meta for Wonder design.";
+  } else try{
     plan=await museWonderBlenderPlan(p,s);
     source="Muse Wonder";
   }catch(e){
@@ -1056,35 +1157,35 @@ print("EXPORTED TO:",filepath)
 };
 
 // ---------- main buttons ----------
-$("generate").onclick = async () => {
-  $("status").textContent = "Generating… Muse Wonder / Groq writes a spec (recipe), never code.";
-  let beforeTitle = spec ? spec.title : "";
-  try {
-    if($("artMode").value !== "painted" && !localStorage.getItem("ff_key_meta"))
-      throw new Error("Meta art modes need a saved Meta key — use Painted, or save a Meta key.");
-    let s = await aiGenerate("Make the layout clearly different from any previous level. Seed: " + Date.now());
-    s.engine     = $("engineSel").value;
-    s.difficulty = $("diff").value;
-    s.boss       = $("boss").checked;
-    s.artStyle = inferStyle($("prompt").value, $("styleSel")?$("styleSel").value:"auto");
-    loadSpec(s, "ai", $("prompt").value);
-    renderFeedAdd($("prompt").value, "ai");
-    $("status").innerHTML = '<span class="ok">Generated &amp; showing: <b>'+spec.title+'</b></span>' +
-      (beforeTitle === spec.title ? ' <span class="err">(same title as before — layout was regenerated)</span>' : '');
-  } catch(e) {
-    $("status").innerHTML = '<span class="err">'+e.message+' Trying one retry / fallback…</span>';
-    try {
-      let s = await aiGenerate(e.message);
-      s.engine = $("engineSel").value;
-      s.difficulty = $("diff").value;
-      s.boss = $("boss").checked;
-      s.artStyle = inferStyle($("prompt").value, $("styleSel")?$("styleSel").value:"auto");
-      loadSpec(s, "ai-retry", $("prompt").value);
-      renderFeedAdd($("prompt").value, "ai-retry");
-    } catch(e2) {
-      loadSpec(genInstant($("prompt").value, $("engineSel").value, $("diff").value, $("boss").checked), "fallback", $("prompt").value);
-      renderFeedAdd($("prompt").value, "fallback");
-      $("status").innerHTML += '<br><span class="err">Fallback level loaded and shown so you are never stuck.</span>';
+$("generate").onclick = async ()=>{
+  let prov = selectedProvider();
+  let beforeTitle = spec ? spec.title : "(none)";
+  $("status").textContent = "Generating with "+prov.label+" ("+prov.model+") ONLY - no other provider...";
+  if(prov.id==="groq" && $("artMode").value!=="painted"){
+    $("artMode").value="painted";
+    $("status").textContent += " Art set to Painted: Groq designs, the engine paints. Meta art needs the Meta provider.";
+  }
+  if(prov.id==="meta" && $("artMode").value!=="painted" && !localStorage.getItem("ff_key_meta")){
+    $("status").innerHTML = '<span class="err">Meta art needs a saved Meta key. Set Art to Painted, or save a Meta key. Nothing generated yet.</span>';
+    return;
+  }
+  try{
+    let s = await aiGenerate(prov);
+    loadSpec(s, "ai-"+prov.id, $("prompt").value);
+    renderFeedAdd($("prompt").value, "ai-"+prov.id);
+    $("status").innerHTML = '<span class="ok">Generated by <b>'+prov.label+' ('+prov.model+')</b> alone &amp; now showing: <b>'+spec.title+'</b></span><br><small>Was: '+beforeTitle+' -&gt; Now: '+spec.title+' · '+spec.map[0].length+'x'+spec.map.length+' map</small>';
+  }catch(e){
+    $("status").innerHTML = '<span class="err">'+prov.label+' attempt failed: '+e.message+' Retrying ONCE with '+prov.label+' only...</span>';
+    try{
+      let s = await aiGenerate(prov, e.message);
+      loadSpec(s, "ai-"+prov.id+"-retry", $("prompt").value);
+      renderFeedAdd($("prompt").value, "ai-"+prov.id+"-retry");
+      $("status").innerHTML = '<span class="ok">Generated by '+prov.label+' on retry &amp; now showing: <b>'+spec.title+'</b></span>';
+    }catch(e2){
+      let s = genInstant($("prompt").value, $("engineSel").value, $("diff").value, $("boss").checked);
+      loadSpec(s, "fallback-local", $("prompt").value);
+      renderFeedAdd($("prompt").value, "fallback-local");
+      $("status").innerHTML += '<br><span class="err">'+prov.label+' failed twice ('+e2.message+'). A brand-new local Instant level is showing instead - NOT the demo, and the other provider was not used.</span>';
     }
   }
 };
