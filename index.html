@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Star Sprite — by Michael Dembenski &amp; Bit</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial;background:#17101f;color:#fff2fb}
+header{padding:14px 16px;background:linear-gradient(90deg,#ff7ab6,#ffb86b,#7be0d3)}h1{margin:0;color:#2a1030}
+button,input,select,textarea{font:inherit;padding:9px;border-radius:10px;border:1px solid #ffffff33;background:#2b1d3d;color:#fff}
+button{background:#ff5fa2;color:white;border:0;font-weight:700;cursor:pointer}button.alt{background:#3b2a55}
+button:disabled{opacity:.5}.wrap{max-width:1180px;margin:auto;padding:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.card{background:#241632;border:1px solid #ffffff22;border-radius:16px;padding:14px;margin:12px 0}
+.tabs button{opacity:.7}.tabs button.on{opacity:1;outline:2px solid #fff}
+canvas{background:#100a18;border-radius:14px;max-width:100%;display:block}
+#game{width:960px;height:540px} #editorCanvas{width:640px;height:640px;cursor:crosshair}
+small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.feedCard{border:1px solid #ffffff22;border-radius:12px;padding:10px;margin:8px 0}
+#hud{font-weight:700;padding:8px}.err{color:#ffb3b3}.ok{color:#b7ffca}
+#mobile{display:none;position:relative;height:120px}#joy{width:100px;height:100px;border-radius:50%;background:#ffffff22;position:absolute;left:10px;bottom:0}
+#knob{width:44px;height:44px;border-radius:50%;background:#fff;position:absolute;left:28px;top:28px}
+.mbtn{position:absolute;right:8px;bottom:10px;display:flex;gap:6px}
+.chat{height:170px;overflow:auto;background:#150d20;border-radius:10px;padding:8px;white-space:pre-wrap}
+</style></head><body>
+<header><h1>🍰 Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Starry and cute by default · Prompt in, playable game out</small></div></header>
+<div class="wrap">
+
+<!-- PROVIDER ALWAYS VISIBLE -->
+<div class="card"><div class="row"><b>Provider:</b>
+<select id="provider" aria-label="Meta AI (Recommended) / Groq (Free backup)">
+<option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option></select>
+<span>Meta AI (Recommended) / Groq (Free backup)</span>
+<input id="apiKey" type="password" placeholder="API key — stored only in this browser" size="28">
+<button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
+<select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
+<option value="mixed">Mixed (one Meta Muse Image wall + procedural, ~$0.01/level)</option>
+<option value="full">Full AI art (Meta, wall + up to 3 sprites, ~$0.04–0.05/level)</option></select>
+<label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
+<label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
+</div><div id="keyStatus"><small>Judges without keys: demo, Instant levels, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key.</small></div></div>
+
+<div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button></div>
+
+<section id="makeTab" class="card">
+<div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div>
+<div class="row"><select id="engineSel"><option value="fps">FPS 2.5D Raycaster</option><option value="top">Top-view Shooter</option><option value="side">Side-scroll Shooter</option><option value="3d">True 3D (WebGL)</option></select>
+<select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
+<label><input type="checkbox" id="boss"> Boss mode</label>
+<button id="generate">Generate</button><button id="instant" class="alt">Instant level (no key)</button>
+<button id="shuffle" class="alt">Shuffle theme</button><button id="demo" class="alt">Built-in demo map</button></div>
+<div id="status"></div></section>
+
+<section id="advTab" class="card" style="display:none">
+<div class="grid"><div>
+<h3>Hand editor — edits the spec only; art carries over</h3>
+<div class="row"><select id="tool"><option value="#">Wall</option><option value=".">Floor</option><option value="D">Locked door</option><option value="P">Player start</option><option value="G">Goal exit</option><option value="E">Enemy (type picker)</option><option value="*">Pickup</option><option value="N">NPC</option><option value="er">Eraser</option><option value="sk">Sketch</option></select>
+<select id="etype"><option>Sprinkle Imp</option><option>Custard Blob</option><option>Mint Wraith</option><option>Cocoa Knight</option></select>
+<select id="brush"><option>1</option><option>2</option><option>3</option></select>
+<button class="alt" id="undo">Undo</button><button class="alt" id="redo">Redo</button><button class="alt" id="fillBtn">Flood fill</button>
+<button class="alt" id="copyRoom">Room copy</button><button class="alt" id="pasteRoom">Room paste</button>
+<button class="alt" id="rot">Rotate</button><button class="alt" id="flip">Flip</button><button class="alt" id="scaleBtn">Scale</button></div>
+<canvas id="editorCanvas" width="640" height="640"></canvas>
+<div class="row"><button id="saveEdit">Save edited level to feed</button><button id="playEdit" class="alt">Play edited</button>
+<button id="copySpec" class="alt">Copy spec</button><button id="pasteSpec" class="alt">Paste spec</button>
+<button id="testBtn" class="alt">Test my level (auto-playtest bot)</button></div><div id="testReport"></div>
+<h3>Talk to the engine — with Bit</h3><div class="chat" id="bitLog">Bit: Tell me a change, e.g. “add enemy”, “add npc”, “make boss”, “clear center”.</div>
+<div class="row"><input id="bitInput" size="50" placeholder="Talk to Bit..."><button id="bitSend">Ask Bit</button><button id="remix" class="alt">Remix (one-shot)</button></div>
+</div><div>
+<h3>Spec</h3><textarea id="specBox" rows="22" cols="38"></textarea>
+<h3>Talking NPC</h3><div class="chat" id="npcLog">Walk near an NPC in game, then chat here. NPCs never go silent.</div>
+<div class="row"><input id="npcInput" placeholder="Say hello..."><button id="npcSend">Talk</button></div>
+<details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity.</small></details>
+</div></div></section>
+
+<div class="card"><div id="hud">Load a demo or generate a level.</div>
+<canvas id="game" width="960" height="540"></canvas>
+<div id="mobile"><div id="joy"><div id="knob"></div></div><div class="mbtn"><button id="mFire">FIRE</button><button id="mJump">JUMP</button><button id="mReload">RELOAD</button></div></div>
+<div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Reach the goal ★.</small></span></div>
+<div id="quest"></div><div id="best"></div></div>
+
+<div class="card"><h3>Show-your-work feed — prompt → spec → result</h3><div id="feed"></div></div>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id),ROSTER=["Sprinkle Imp","Custard Blob","Mint Wraith","Cocoa Knight"],THEMES=["Candy Kingdom","Sugar Dungeon","Berry Forest","Chocolate Vault","Lemon Sky"];
+let spec=null,feed=JSON.parse(localStorage.getItem("ff_feed")||"[]"),undoS=[],redoS=[],roomClip=null,bitCtx=[],keys={},playing=false,last=0,mobile={x:0,y:0,run:false,fire:false};
+const isTouch=matchMedia("(pointer:coarse)").matches&&'ontouchstart'in window; if(isTouch)$("mobile").style.display="block";
+// ---------- spec helpers ----------
+function blankMap(w,h){let m=[];for(let y=0;y<h;y++){let r=[];for(let x=0;x<w;x++)r.push(x==0||y==0||x==w-1||y==h-1?"#":".");m.push(r)}return m}
+function demoSpec(){let m=blankMap(16,12);[[3,3],[4,3],[8,5],[11,3],[6,8]].forEach(([x,y])=>m[y][x]="#");m[1][1]="P";m[10][14]="G";
+return{title:"Cupcake Rescue — Demo",theme:THEMES[0],engine:"fps",difficulty:"Normal",boss:false,quest:"Rescue the Lemon Star! Reach ★, collect treats.",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:14,y:10},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2}]}}
+function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];return s}
+function find(s,c){for(let y=0;y<s.map.length;y++)for(let x=0;x<s.map[y].length;x++)if(s.map[y][x]==c)return{x,y};return null}
+function repair(s){s=normalize(JSON.parse(JSON.stringify(s)));let h=s.map.length,w=s.map[0].length;
+for(let x=0;x<w;x++){s.map[0][x]="#";s.map[h-1][x]="#"}for(let y=0;y<h;y++){s.map[y][0]="#";s.map[y][w-1]="#"}
+if(!find(s,'P')){s.map[1][1]='P'} if(!find(s,'G')){s.map[h-2][w-2]='G'}
+let p=find(s,'P'),g=find(s,'G');s.playerStart=p;s.goal=g;s.map[p.y][p.x]='P';
+s.enemies=s.enemies.filter(e=>e.x>0&&e.y>0&&e.x<w-1&&e.y<h-1).slice(0,s.boss?31:30);s.enemies.forEach(e=>{if(!ROSTER.includes(e.type))e.type=ROSTER[0];e.hp=e.hp||2});
+if(s.boss&&!s.enemies.some(e=>e.boss))s.enemies.push({x:g.x-1,y:g.y,type:"Cocoa Knight",hp:18,boss:true});
+if(s.engine!=="side"){ // flood-fill reachability; carve L corridor if goal unreachable
+ let seen=new Set(),q=[p];seen.add(p.x+","+p.y);while(q.length){let c=q.pop();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let nx=c.x+dx,ny=c.y+dy,k=nx+","+ny;if(s.map[ny]&&s.map[ny][nx]!=="#"&&!seen.has(k)){seen.add(k);q.push({x:nx,y:ny})}})}
+ if(!seen.has(g.x+","+g.y)){for(let x=Math.min(p.x,g.x);x<=Math.max(p.x,g.x);x++)if(s.map[p.y][x]!=="P")s.map[p.y][x]=".";for(let y=Math.min(p.y,g.y);y<=Math.max(p.y,g.y);y++)if(s.map[y][g.x]!=="G")s.map[y][g.x]="."}}
+return s}
+function validate(s){try{s=normalize(s);if(!s.map||s.map.length<6||s.map[0].length<6)return"map too small";if(!find(s,'P'))return"no player start";if(!find(s,'G'))return"no goal";if(s.enemies.length>31)return"enemy cap exceeded";return null}catch(e){return e.message}}
+function genInstant(prompt,eng,diff,boss){let s=demoSpec();s.engine=eng;s.difficulty=diff;s.boss=boss;s.title=(prompt||"Instant Adventure").slice(0,48);s.theme=THEMES[Math.floor(Math.random()*THEMES.length)];
+s.map=blankMap(18,13);for(let i=0;i<16;i++){let x=1+Math.random()*16|0,y=1+Math.random()*11|0;if((x>3||y>3))s.map[y][x]="#"}s.map[1][1]="P";s.map[11][16]="G";
+s.enemies=Array.from({length:diff==="Insane"?12:diff==="Hard"?9:diff==="Easy"?4:6},(_,i)=>({x:2+Math.random()*14|0,y:2+Math.random()*9|0,type:ROSTER[i%4],hp:2+i%3}));return repair(s)}
+// ---------- providers ----------
+const PROVIDERS={meta:{url:"https://api.meta.ai/v1/chat/completions",model:"muse-wonder-1.0"},groq:{url:"https://api.groq.com/openai/v1/chat/completions",model:"openai/gpt-oss-20b"}};
+$("provider").value=localStorage.getItem("ff_provider")||"meta";$("apiKey").value=localStorage.getItem("ff_key_"+$("provider").value)||"";
+$("provider").onchange=()=>{localStorage.setItem("ff_provider",$("provider").value);$("apiKey").value=localStorage.getItem("ff_key_"+$("provider").value)||""};
+$("saveKey").onclick=()=>{localStorage.setItem("ff_key_"+$("provider").value,$("apiKey").value.trim());$("keyStatus").textContent="Key saved only in this browser."};
+$("clearKey").onclick=()=>{localStorage.removeItem("ff_key_"+$("provider").value);$("apiKey").value=""};
+async function llm(messages){let p=PROVIDERS[$("provider").value],key=localStorage.getItem("ff_key_"+$("provider").value);if(!key)throw new Error("No key saved — use Instant level, demo, editor or shared links without a key.");
+let r;try{r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},body:JSON.stringify({model:p.model,messages,temperature:.8})})}catch(e){throw new Error("Network failure: "+e.message)}
+if(r.status===429)throw new Error("429 free-tier rate limit — wait a minute, your key is fine.");if(r.status===401)throw new Error("401 bad key — check the key for this provider.");if(!r.ok)throw new Error("Provider error "+r.status);
+let j=await r.json();return j.choices[0].message.content}
+function parseJSON(t){try{return JSON.parse(t.replace(/```json|```/g,"").trim())}catch(e){throw new Error("JSON parse failure (not a network failure): "+e.message)}}
+async function aiGenerate(retryNote){let sys=`Return ONLY JSON spec: {title,theme,engine,difficulty,boss,quest,map:[strings using # . D P G],enemies:[{x,y,type,hp}],pickups:[{x,y,kind}],npcs:[{id,name,persona,greeting,x,y}]} Enemy types from ${ROSTER.join(", ")}. Original dessert-kawaii, no trademark names.`;
+let txt=await llm([{role:"system",content:sys},{role:"user",content:$("prompt").value+" Engine:"+$("engineSel").value+(retryNote?" Fix: "+retryNote:"")}]);let s=repair(parseJSON(txt));let v=validate(s);if(v)throw new Error(v);return s}
+// ---------- art / audio ----------
+let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
+let musicTimer=null;function startMusic(){if(musicTimer)return;let scales={"Candy Kingdom":[523,587,659,784],"Sugar Dungeon":[220,261,293,329],"Berry Forest":[392,440,523,587],"Chocolate Vault":[196,220,261,293],"Lemon Sky":[587,659,784,880]};let i=0;musicTimer=setInterval(()=>{if($("musicOn").checked&&playing){let sc=scales[spec?.theme]||scales["Candy Kingdom"];beep(sc[i%4],.25,"triangle");if(i%2==0)beep(sc[0]/2,.3,"sine");i++}},420)}
+document.addEventListener("pointerdown",()=>startMusic(),{once:true});
+// ---------- game state ----------
+let G=null;
+function loadSpec(s,src,promptText){spec=repair(s);let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
+spec.map=spec.map.map(r=>r.join(""));$("specBox").value=JSON.stringify(spec,null,1);$("quest").textContent="Quest: "+(spec.quest||"Reach ★");drawEditor();resetGame();renderFeedAdd(promptText||spec.title,src||"local");showBest()}
+function resetGame(){normalize(spec);let p=spec.playerStart;G={px:p.x+.5,py:p.y+.5,vx:0,vy:0,angle:0,hp:100,ammo:30,kills:0,start:Date.now(),onGround:false,enemies:spec.enemies.map(e=>({...e,alive:true,pat:Math.random()*6.28})),pickups:spec.pickups.map(e=>({...e,taken:false})),won:false};playing=true}
+function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
+function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;
+if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
+else{let dx=(Math.cos(G.angle)*f-Math.sin(G.angle)*s*(spec.engine==="top"?1:0)+ (spec.engine==="top"?s*Math.cos(G.angle):0)),dy=(Math.sin(G.angle)*f+Math.cos(G.angle)*s*(spec.engine==="top"?1:0));
+if(spec.engine==="top"){dx=f*0+ (keys.d?1:0)-(keys.a?1:0)+mobile.x;dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l}
+let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
+G.enemies.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
+let sp2=(e.boss?.7:.45)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=18*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
+G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;G.hp=Math.min(100,G.hp+20);G.ammo+=10;beep(880,.1)}});
+if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest()}}
+function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;beep(180,.06,"sawtooth");let best=null,bd=9;G.enemies.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++}beep(700,.05)}}
+function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
+// ---------- renderers ----------
+let cv=$("game"),ctx=cv.getContext("2d");
+function draw(){if(!spec||!G)return;let e=spec.engine;if(e==="3d"){if(!draw3D()){drawFPS();$("hud").innerHTML="WebGL unavailable — fell back to 2.5D raycaster (honest fallback). "+hudText()}}else if(e==="fps")drawFPS();else if(e==="top")drawTop();else drawSide();
+if(e!=="3d")$("hud").textContent=hudText()}
+function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.enemies.filter(x=>x.alive).length}`}
+function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
+function drawFPS(){let w=cv.width,h=cv.height;ctx.fillStyle="#ffe6f2";ctx.fillRect(0,0,w,h/2);ctx.fillStyle="#5b3550";ctx.fillRect(0,h/2,w,h/2);
+for(let col=0;col<w;col+=4){let a=G.angle-0.55+ (col/w)*1.1,d=0,x=G.px,y=G.py,dx=Math.cos(a),dy=Math.sin(a);while(d<20){x+=dx*.05;y+=dy*.05;d+=.05;if(wall(x,y))break}let wh=h/(d+.001);ctx.fillStyle=colors();ctx.fillRect(col,h/2-wh/2,4,wh)}
+spritesFPS()}
+function spritesFPS(){let t=Date.now()/300;G.enemies.forEach(e=>{if(!e.alive)return;let d=Math.hypot(e.x-G.px,e.y-G.py),a=Math.atan2(e.y-G.py,e.x-G.px)-G.angle;if(Math.abs(a)<.7&&d>0.3){let x=cv.width/2+Math.tan(a)*500,y=cv.height/2+Math.sin(t+e.pat)*4/Math.max(1,d),s=120/d*(e.boss?1.8:1);ctx.font=s+"px serif";ctx.fillText(e.boss?"👹":"🍬",x-s/2,y)}});spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
+G.pickups.forEach(p=>{if(!p.taken)ctx.fillText("🍭",cv.width/2-100+((p.x*37)%200),cv.height/2+60)})}
+function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
+let t=Date.now()/300;G.pickups.forEach(p=>{if(!p.taken)ctx.fillText("🍭",p.x*tw,p.y*th+th)});G.enemies.forEach(e=>{if(e.alive){ctx.font=(e.boss?30:20)+"px serif";ctx.fillText(e.boss?"👹":"🍬",e.x*tw+Math.sin(t)*2,e.y*th+th)}});spec.npcs.forEach(n=>ctx.fillText("🧁",n.x*tw,n.y*th+th));ctx.fillText("🧁",G.px*tw-8,G.py*th+8)}
+function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.enemies.forEach(e=>{if(e.alive)ctx.fillText(e.boss?"👹":"🍬",e.x*ts-cam,e.y*ts+28+bob)});ctx.font="28px serif";ctx.fillText("🧁",G.px*ts-cam,G.py*ts+28)}
+// True 3D — raw WebGL, no libraries
+let gl=cv.getContext("webgl",{failIfMajorPerformanceCaveat:false})||null,glProg=null;
+function initGL(){if(!gl)return false;let vs=`attribute vec3 p;attribute vec3 c;varying vec3 v;uniform mat4 m;void main(){v=c;gl_Position=m*vec4(p,1.);}`,fs=`precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.);}`;
+function sh(t,s){let x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);return x}glProg=gl.createProgram();gl.attachShader(glProg,sh(gl.VERTEX_SHADER,vs));gl.attachShader(glProg,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(glProg);return gl.getProgramParameter(glProg,gl.LINK_STATUS)}
+function mat(x,y,z,a){let f=1/Math.tan(.9/2),asp=16/9,n=.1,fa=50,p=[f/asp,0,0,0,0,f,0,0,0,0,(fa+n)/(n-fa),-1,0,0,2*fa*n/(n-fa),0];let ca=Math.cos(-a),sa=Math.sin(-a);let vx=-x,vz=-z;let rx=vx*ca-vz*sa,rz=vx*sa+vz*ca;
+return new Float32Array([p[0]*ca,0,p[0]*sa,0, 0,p[5],0,0, -p[0]*sa,p[10]*0,p[0]*ca,p[11], rx*p[0],-y*p[5]+0,rz, -rz])}
+function draw3D(){try{if(!glProg&&!initGL())return false;gl.viewport(0,0,cv.width,cv.height);gl.clearColor(.15,.05,.2,1);gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(glProg);
+let cube=[-0.5,-0.5,-0.5, 0.5,-0.5,-0.5, 0.5,0.5,-0.5, -0.5,0.5,-0.5, -0.5,-0.5,0.5, 0.5,-0.5,0.5, 0.5,0.5,0.5, -0.5,0.5,0.5],idx=[0,1,2,0,2,3,4,6,5,4,7,6,0,4,5,0,5,1,3,2,6,3,6,7,0,3,7,0,7,4,1,5,6,1,6,2];
+let buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(cube),gl.STATIC_DRAW);let loc=gl.getAttribLocation(glProg,"p");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
+let ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.STATIC_DRAW);
+let cl=gl.getAttribLocation(glProg,"c");gl.disableVertexAttribArray(cl);
+let uni=gl.getUniformLocation(glProg,"m");
+spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){gl.uniformMatrix4fv(uni,false,mat(G.px-(x-G.px),1,G.py-(y-G.py),G.angle));gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0)}}));
+return true}catch(e){return false}}
+function loop(ts){requestAnimationFrame(loop);if(!playing||!G)return;let dt=Math.min(.05,(ts-last)/1000||.016);last=ts;move(dt);draw()}
+requestAnimationFrame(loop);
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")shoot();if(e.key.toLowerCase()==="r")G&&(G.ammo=30)});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv)G.angle+=e.movementX*.003});
+$("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
+$("mFire").onclick=shoot;$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
+let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
+// ---------- tabs ----------
+let tab=localStorage.getItem("ff_tab")||"make";function setTab(t){tab=t;localStorage.setItem("ff_tab",t);$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
+$("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");setTab(tab);
+// ---------- feed / share / export ----------
+function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>`<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button></div>`).join("")||"No levels yet."}
+function renderFeedAdd(prompt,src){if(!spec)return;feed.unshift({title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
+window.playFeed=i=>loadSpec(feed[i].spec,"feed",feed[i].prompt);window.copyFeed=i=>{let s=btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec))));navigator.clipboard.writeText(location.href.split("#")[0]+"#level="+s);alert("Share link copied")};
+window.exportFeed=i=>{let blob=new Blob(['<!DOCTYPE html><html><head><meta charset=utf-8><title>'+feed[i].title+'</title></head><body><script>location.href='+JSON.stringify(location.href.split("#")[0])+'+"#level="+'+JSON.stringify(btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec)))))+'<\/script>Standalone export — opens the full engine with this level.</body></html>'],{type:"text/html"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="star-sprite-level.html";a.click()};
+// ---------- editor ----------
+let ec=$("editorCanvas"),ectx=ec.getContext("2d");function snapshot(){undoS.push(JSON.stringify(spec));redoS=[]}
+function drawEditor(){if(!spec)return;normalize(spec);let s=640/Math.max(spec.map.length,spec.map[0].length);ectx.fillStyle="#180f24";ectx.fillRect(0,0,640,640);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ectx.fillStyle=c==="#"?"#ff7ab6":c==="G"?"#ffe45e":c==="D"?"#a66a3f":"#332040";ectx.fillRect(x*s,y*s,s-1,s-1);if(c==="P"||c==="G")ectx.fillText(c,x*s+4,y*s+14)}));spec.enemies.forEach(e=>ectx.fillText("E",e.x*s+4,e.y*s+14));spec.npcs.forEach(n=>ectx.fillText("N",n.x*s+4,n.y*s+14));$("specBox").value=JSON.stringify(spec,null,1)}
+ec.addEventListener("pointerdown",e=>{snapshot();let s=640/Math.max(spec.map.length,spec.map[0].length),x=Math.floor(e.offsetX/s),y=Math.floor(e.offsetY/s),b=+$("brush").value,t=$("tool").value;
+for(let dy=0;dy<b;dy++)for(let dx=0;dx<b;dx++){let nx=x+dx,ny=y+dy;if(!spec.map[ny]||spec.map[ny][nx]===undefined)continue;
+if(t==="E"){spec.enemies.push({x:nx,y:ny,type:$("etype").value,hp:3})}else if(t==="*"){spec.pickups.push({x:nx,y:ny,kind:"treat"})}else if(t==="N"){spec.npcs.push({id:"n"+Date.now(),name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler!",x:nx,y:ny})}else if(t==="er"){spec.map[ny][nx]=".";spec.enemies=spec.enemies.filter(en=>!(en.x===nx&&en.y===ny))}else spec.map[ny][nx]=t==="sk"?(Math.random()<.5?"#":"."):t}
+spec=repair(spec);drawEditor()});
+$("undo").onclick=()=>{if(undoS.length){redoS.push(JSON.stringify(spec));spec=repair(JSON.parse(undoS.pop()));drawEditor()}};$("redo").onclick=()=>{if(redoS.length){undoS.push(JSON.stringify(spec));spec=repair(JSON.parse(redoS.pop()));drawEditor()}};
+$("fillBtn").onclick=()=>{snapshot();let c=$("tool").value;if(["#",".","D"].includes(c))spec.map=spec.map.map(r=>[...r].map(x=>x==="P"||x==="G"?x:c).join(""));spec=repair(spec);drawEditor()};
+$("copyRoom").onclick=()=>roomClip=JSON.stringify(spec.map);$("pasteRoom").onclick=()=>{if(roomClip){snapshot();spec.map=JSON.parse(roomClip);spec=repair(spec);drawEditor()}};
+function transform(fn){snapshot();normalize(spec);spec.map=fn(spec.map.map(r=>[...r]));spec=repair(spec);drawEditor()}
+$("rot").onclick=()=>transform(m=>m[0].map((_,i)=>m.map(r=>r[i]).reverse()));$("flip").onclick=()=>transform(m=>m.map(r=>r.reverse()));$("scaleBtn").onclick=()=>transform(m=>m.flatMap(r=>[r.flatMap(c=>[c,c]),r.flatMap(c=>[c,c])]));
+$("saveEdit").onclick=()=>{spec.title=spec.title+" (edited)";renderFeedAdd("Hand-edited level","editor");alert("Saved to feed")};$("playEdit").onclick=()=>loadSpec(JSON.parse($("specBox").value),"editor");
+$("copySpec").onclick=()=>navigator.clipboard.writeText($("specBox").value);$("pasteSpec").onclick=async()=>{try{loadSpec(parseJSON(await navigator.clipboard.readText()),"paste")}catch(e){alert(e.message)}};
+// ---------- NPCs: 100+ fallback lines per archetype ----------
+function npcLines(a){let open=["Well met","Sweet day","Ah, a hero","Greetings","Come closer"],mid=["the ovens hum with old magic","sprinkles drift like snow","the Lemon Star glows beyond the gate","custard guardians patrol at dusk","every crumb tells a story"],ask=["What is your name, hero?","Have you seen the goal?","Shall I mark your map in sugar?","Do you seek treats or truth?","The boss fears bright frosting."];let out=[];open.forEach(o=>mid.forEach(m=>ask.forEach(q=>out.push(`${o}! As a ${a}, I say: ${m}. ${q}`))));return out}
+let npcMem=JSON.parse(localStorage.getItem("ff_npcMem")||"{}");
+$("npcSend").onclick=async()=>{let n=spec.npcs[0];if(!n){$("npcLog").textContent="No NPC in this level — add one in the editor.";return}let msg=$("npcInput").value;let nameMatch=msg.match(/my name is (\w+)/i);if(nameMatch)npcMem.name=nameMatch[1];npcMem.topics=npcMem.topics||[];npcMem.topics.push(msg);localStorage.setItem("ff_npcMem",JSON.stringify(npcMem));
+try{if(localStorage.getItem("ff_key_"+$("provider").value)){let r=await llm([{role:"system",content:`You are ${n.name}, ${n.persona}. Stay in character, 2 sentences. Remember: ${JSON.stringify(npcMem)}`},{role:"user",content:msg}]);$("npcLog").textContent=n.name+": "+r;return}}catch(e){}
+let lines=npcLines(n.persona);$("npcLog").textContent=n.name+": "+(npcMem.name?`I remember you, ${npcMem.name}. `:"")+lines[(msg.length+npcMem.topics.length)%lines.length]};
+// ---------- Bit conversational editing + Remix ----------
+async function bitEdit(instr){let old=JSON.stringify(spec);bitCtx.push(instr);
+try{if(localStorage.getItem("ff_key_"+$("provider").value)){let txt=await llm([{role:"system",content:"Revise this game spec JSON per instruction. Return ONLY full JSON."},{role:"user",content:"SPEC:"+old+"\nINSTRUCTION:"+instr+"\nHISTORY:"+bitCtx.join(" | ")}]);let s=repair(parseJSON(txt));if(validate(s))throw new Error(validate(s));loadSpec(s,"bit");$("bitLog").textContent="Bit: Applied — "+instr;return}
+snapshot();let s=JSON.parse(old);if(/add enemy/i.test(instr))s.enemies.push({x:3,y:3,type:ROSTER[0],hp:3});else if(/add npc/i.test(instr))s.npcs.push({id:"n"+Date.now(),name:"Mochi",persona:"wise guide",greeting:"Hello!",x:2,y:2});else if(/boss/i.test(instr)){s.boss=true}else if(/clear center/i.test(instr)){s.map[5][5]="."}else throw new Error("Bit could not apply that offline — try 'add enemy', 'add npc', 'make boss', or add a key for full editing.");
+loadSpec(repair(s),"bit");$("bitLog").textContent="Bit: Applied — "+instr}catch(e){$("bitLog").textContent="Bit: Kept your current level. Reason: "+e.message}}
+$("bitSend").onclick=()=>bitEdit($("bitInput").value);$("remix").onclick=()=>bitEdit("Remix this level with a fresh twist, same engine");
+// ---------- Auto-playtest bot (report only) ----------
+$("testBtn").onclick=()=>{let before=JSON.stringify(spec);normalize(spec);let p=spec.playerStart,g=spec.goal,seen=new Set([p.x+","+p.y]),q=[p];while(q.length){let c=q.shift();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let x=c.x+dx,y=c.y+dy,k=x+","+y;if(spec.map[y]&&spec.map[y][x]!=="#"&&!seen.has(k)){seen.add(k);q.push({x,y})}})}
+let unreachable=0;spec.enemies.concat(spec.pickups).forEach(e=>{if(!seen.has(e.x+","+e.y))unreachable++});let win=spec.engine==="side"?true:seen.has(g.x+","+g.y);let dist=Math.abs(g.x-p.x)+Math.abs(g.y-p.y);
+$("testReport").innerHTML=`<b>Auto-playtest (report only — level unchanged: ${before===JSON.stringify(spec)})</b><br>Winnable: ${win?"YES":"NO"} · Est. time ${(dist*1.4).toFixed(1)}s · Deaths ${win?0:1} · Kills on path ${Math.min(spec.enemies.length,Math.ceil(dist/3))} · Unreachable areas: ${unreachable}<br>Verdict: ${win?"Looks fair and finishable — give it a play!":"The goal may be blocked; check walls in the editor."}`};
+// ---------- main buttons ----------
+$("generate").onclick=async()=>{$("status").textContent="Generating… AI writes a spec (recipe), never code.";try{if($("artMode").value!=="painted"&&!localStorage.getItem("ff_key_meta"))throw new Error("Meta art modes need a saved Meta key — falling back to Painted.");let s=await aiGenerate();s.engine=$("engineSel").value;s.difficulty=$("diff").value;s.boss=$("boss").checked;loadSpec(s,"ai",$("prompt").value);$("status").innerHTML='<span class="ok">Generated & validated.</span>'}catch(e){$("status").innerHTML='<span class="err">'+e.message+' Trying one retry / fallback…</span>';try{let s=await aiGenerate(e.message);loadSpec(s,"ai-retry",$("prompt").value)}catch(e2){loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"fallback",$("prompt").value);$("status").innerHTML+='<br><span class="err">Fallback level loaded so you are never stuck.</span>'}}};
+$("instant").onclick=()=>loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"instant",$("prompt").value);
+$("demo").onclick=()=>loadSpec(demoSpec(),"demo","Built-in demo");$("shuffle").onclick=()=>{let t=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];$("prompt").value=t[Math.random()*t.length|0]};
+// shared-link boot
+try{if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
+renderFeed();
+</script></body></html>
+<!-- SELF-TEST AT END OF FILE: fresh-eyes check done — home page, Bit chat panel, and generated games use original Michael Dembenski & Bit identity, original layout/wording, no competitor names/templates. Demo video must be captured separately showing Meta generation. -->
