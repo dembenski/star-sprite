@@ -19,8 +19,13 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 #knob{width:44px;height:44px;border-radius:50%;background:#fff;position:absolute;left:28px;top:28px}
 .mbtn{position:absolute;right:8px;bottom:10px;display:flex;gap:6px}
 .chat{height:170px;overflow:auto;background:#150d20;border-radius:10px;padding:8px;white-space:pre-wrap}
+.stage{position:relative}
+#crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;pointer-events:none;z-index:3}
+#crosshair .lol{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#ff7ab6 55%,#ff2f86);border:2px solid #fff;box-shadow:0 2px 8px #000}
+#crosshair .stick{width:4px;height:26px;background:#fff;margin:0 auto;box-shadow:0 2px 8px #000}
+#shootBtn{position:absolute;right:18px;bottom:18px;width:92px;height:92px;border-radius:50%;font-size:18px;z-index:4;background:#ff2f86;box-shadow:0 6px 20px #0008;color:#fff;font-weight:700;border:0;cursor:pointer}
 </style></head><body>
-<header><h1>🍰 Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Starry and cute by default · Prompt in, playable game out</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Starry and cute by default · Prompt in, playable game out</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -50,6 +55,17 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
+<div class="card" style="background:#30183f">
+<h3>Blender Gizmo — Bit Layout Builder</h3>
+<p><small>Prompt → playable level here + Blender scene script. In Blender: Scripting → Open → Run Script. Or enable a local bridge on 127.0.0.1:8188.</small></p>
+<div class="row">
+<input id="gizmoPrompt" size="55" placeholder="pink candy castle, maze left, boss arena right, forest entrance">
+<button id="gizmoGo">Create with Gizmo</button>
+<button class="alt" id="gizmoDownload">Download Blender .py</button>
+</div>
+<textarea id="gizmoPy" rows="8" cols="70" placeholder="Blender Python will appear here..."></textarea>
+<div id="gizmoStatus"></div>
+</div>
 <h3>Hand editor — edits the spec only; art carries over</h3>
 <div class="row"><select id="tool"><option value="#">Wall</option><option value=".">Floor</option><option value="D">Locked door</option><option value="P">Player start</option><option value="G">Goal exit</option><option value="E">Enemy (type picker)</option><option value="*">Pickup</option><option value="N">NPC</option><option value="er">Eraser</option><option value="sk">Sketch</option></select>
 <select id="etype"><option>Sprinkle Imp</option><option>Custard Blob</option><option>Mint Wraith</option><option>Cocoa Knight</option></select>
@@ -71,7 +87,11 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 </div></div></section>
 
 <div class="card"><div id="hud">Load a demo or generate a level.</div>
-<canvas id="game" width="960" height="540"></canvas>
+<div class="stage">
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="crosshair"><div class="lol"></div><div class="stick"></div></div>
+  <button id="shootBtn">SHOOT</button>
+</div>
 <div id="mobile"><div id="joy"><div id="knob"></div></div><div class="mbtn"><button id="mFire">FIRE</button><button id="mJump">JUMP</button><button id="mReload">RELOAD</button></div></div>
 <div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Reach the goal ★.</small></span></div>
 <div id="quest"></div><div id="best"></div></div>
@@ -85,8 +105,8 @@ let spec=null,feed=JSON.parse(localStorage.getItem("ff_feed")||"[]"),undoS=[],re
 const isTouch=matchMedia("(pointer:coarse)").matches&&'ontouchstart'in window; if(isTouch)$("mobile").style.display="block";
 // ---------- spec helpers ----------
 function blankMap(w,h){let m=[];for(let y=0;y<h;y++){let r=[];for(let x=0;x<w;x++)r.push(x==0||y==0||x==w-1||y==h-1?"#":".");m.push(r)}return m}
-function demoSpec(){let m=blankMap(16,12);[[3,3],[4,3],[8,5],[11,3],[6,8]].forEach(([x,y])=>m[y][x]="#");m[1][1]="P";m[10][14]="G";
-return{title:"Cupcake Rescue — Demo",theme:THEMES[0],engine:"fps",difficulty:"Normal",boss:false,quest:"Rescue the Lemon Star! Reach ★, collect treats.",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:14,y:10},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2}]}}
+function demoSpec(){let m=blankMap(20,14);[[3,3],[4,3],[5,3],[8,5],[11,3],[12,8],[6,9],[15,5],[17,9],[9,11]].forEach(([x,y])=>m[y][x]="#");m[1][1]="P";m[12][18]="G";
+return{title:"Cupcake Rescue — Demo",theme:THEMES[0],engine:"fps",difficulty:"Normal",boss:false,quest:"★ WOW DEMO: Rescue the Lemon Star! 3-at-a-time waves, boss at the goal!",map:m.map(r=>r.join("")),playerStart:{x:1,y:1},goal:{x:18,y:12},enemies:[{x:6,y:3,type:ROSTER[0],hp:2},{x:10,y:8,type:ROSTER[1],hp:3},{x:14,y:3,type:ROSTER[2],hp:2},{x:5,y:10,type:ROSTER[3],hp:3},{x:12,y:10,type:ROSTER[0],hp:2},{x:16,y:6,type:ROSTER[1],hp:3},{x:8,y:6,type:ROSTER[2],hp:2},{x:3,y:11,type:ROSTER[3],hp:3},{x:17,y:12,type:"Cocoa Knight",hp:18,boss:true}],pickups:[{x:4,y:8,kind:"treat"},{x:12,y:2,kind:"heart"},{x:15,y:10,kind:"treat"}],npcs:[{id:"n1",name:"Pudding",persona:"cheerful baker",greeting:"Hello, hero! The Lemon Star is east!",x:2,y:2},{id:"n2",name:"Mochi",persona:"wise guide",greeting:"Welcome, traveler! Waves come three at a time.",x:9,y:2},{id:"n3",name:"Berry",persona:"brave scout",greeting:"The boss guards the goal. You can do this!",x:14,y:11}]}}
 function normalize(s){s.map=s.map.map(r=>typeof r==="string"?r.split(""):r);s.playerStart=s.playerStart||find(s,'P')||{x:1,y:1};s.goal=s.goal||find(s,'G')||{x:s.map[0].length-2,y:s.map.length-2};s.enemies=s.enemies||[];s.pickups=s.pickups||[];s.npcs=s.npcs||[];return s}
 function find(s,c){for(let y=0;y<s.map.length;y++)for(let x=0;x<s.map[y].length;x++)if(s.map[y][x]==c)return{x,y};return null}
 function repair(s){s=normalize(JSON.parse(JSON.stringify(s)));let h=s.map.length,w=s.map[0].length;
@@ -120,37 +140,78 @@ let txt=await llm([{role:"system",content:sys},{role:"user",content:$("prompt").
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
 let musicTimer=null;function startMusic(){if(musicTimer)return;let scales={"Candy Kingdom":[523,587,659,784],"Sugar Dungeon":[220,261,293,329],"Berry Forest":[392,440,523,587],"Chocolate Vault":[196,220,261,293],"Lemon Sky":[587,659,784,880]};let i=0;musicTimer=setInterval(()=>{if($("musicOn").checked&&playing){let sc=scales[spec?.theme]||scales["Candy Kingdom"];beep(sc[i%4],.25,"triangle");if(i%2==0)beep(sc[0]/2,.3,"sine");i++}},420)}
 document.addEventListener("pointerdown",()=>startMusic(),{once:true});
+
+// ---------- procedural image sprites (drawn, no emoji characters) ----------
+function makeSprite(body,accent){
+ const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
+ x.fillStyle=body;x.beginPath();x.ellipse(64,70,46,42,0,0,7);x.fill();
+ x.fillStyle=accent;for(let i=0;i<7;i++){x.beginPath();x.arc(30+((i*17)%70),38+((i*13)%60),4,0,7);x.fill()}
+ x.fillStyle="#fff";x.beginPath();x.ellipse(48,66,12,16,0,0,7);x.ellipse(80,66,12,16,0,0,7);x.fill();
+ x.fillStyle="#241632";x.beginPath();x.ellipse(48,68,6,9,0,0,7);x.ellipse(80,68,6,9,0,0,7);x.fill();
+ x.fillStyle="#ffb3d1";x.beginPath();x.ellipse(34,82,10,6,0,0,7);x.ellipse(94,82,10,6,0,0,7);x.fill();
+ x.strokeStyle="#241632";x.lineWidth=3;x.beginPath();x.arc(64,84,12,0.15*Math.PI,0.85*Math.PI);x.stroke();
+ return c;
+}
+const SPRITES={
+ "Sprinkle Imp":makeSprite("#ff7ab6","#fff"),
+ "Custard Blob":makeSprite("#ffd84d","#ff7ab6"),
+ "Mint Wraith":makeSprite("#7be0d3","#fff"),
+ "Cocoa Knight":makeSprite("#a66a3f","#ffd84d")
+};
+function makePlayerSprite(){
+ const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
+ x.fillStyle="#ff9ec7";x.beginPath();x.arc(64,64,46,0,7);x.fill();
+ x.fillStyle="#fff";x.beginPath();x.ellipse(48,60,12,16,0,0,7);x.ellipse(80,60,12,16,0,0,7);x.fill();
+ x.fillStyle="#241632";x.beginPath();x.ellipse(48,62,6,9,0,0,7);x.ellipse(80,62,6,9,0,0,7);x.fill();
+ x.fillStyle="#ffb3d1";x.beginPath();x.ellipse(34,76,10,6,0,0,7);x.ellipse(94,76,10,6,0,0,7);x.fill();
+ return c;
+}
+const PLAYERSPRITE=makePlayerSprite();
+function makeWallTex(){
+ const c=document.createElement("canvas");c.width=c.height=128;let x=c.getContext("2d");
+ x.fillStyle="#ff9ec7";x.fillRect(0,0,128,128);
+ x.fillStyle="#ffc7dd";x.fillRect(0,0,128,22);x.fillRect(0,64,128,10);
+ ["#fff","#7be0d3","#ffd84d","#ff5fa2"].forEach((col,i)=>{
+   x.fillStyle=col;
+   for(let j=0;j<8;j++)x.fillRect(10+j*14,18+((j*23+i*11)%90),8,3)
+ });
+ // drawn cake slice, no emoji
+ x.fillStyle="#fff";x.fillRect(48,84,32,28);x.fillStyle="#ff5fa2";x.fillRect(48,84,32,10);x.fillStyle="#ffd84d";x.beginPath();x.arc(64,78,8,0,7);x.fill();
+ return c;
+}
+const WALLTEX=makeWallTex();
+
 // ---------- game state ----------
 let G=null;
 function loadSpec(s,src,promptText){spec=repair(s);let v=validate(spec);if(v){spec=demoSpec();$("status").innerHTML='<span class="err">Invalid level ('+v+') — loaded demo map instead. Never a silent failure.</span>'}
-spec.map=spec.map.map(r=>r.join(""));$("specBox").value=JSON.stringify(spec,null,1);$("quest").textContent="Quest: "+(spec.quest||"Reach ★");drawEditor();resetGame();renderFeedAdd(promptText||spec.title,src||"local");showBest()}
-function resetGame(){normalize(spec);let p=spec.playerStart;G={px:p.x+.5,py:p.y+.5,vx:0,vy:0,angle:0,hp:100,ammo:30,kills:0,start:Date.now(),onGround:false,enemies:spec.enemies.map(e=>({...e,alive:true,pat:Math.random()*6.28})),pickups:spec.pickups.map(e=>({...e,taken:false})),won:false};playing=true}
+spec.map=spec.map.map(r=>r.join(""));$("specBox").value=JSON.stringify(spec,null,1);$("quest").textContent="Quest: "+(spec.quest||"Reach ★");drawEditor();resetGame();showBest()}
+function resetGame(){normalize(spec);let p=spec.playerStart;let allE=spec.enemies.map(e=>({...e,alive:true,pat:Math.random()*6.28}));G={px:p.x+.5,py:p.y+.5,vx:0,vy:0,angle:0,hp:100,ammo:30,kills:0,start:Date.now(),onGround:false,enemies:allE,active:allE.slice(0,3),queue:allE.slice(3),pickups:spec.pickups.map(e=>({...e,taken:false})),won:false};playing=true}
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
 function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;
 if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
 else{let dx=(Math.cos(G.angle)*f-Math.sin(G.angle)*s*(spec.engine==="top"?1:0)+ (spec.engine==="top"?s*Math.cos(G.angle):0)),dy=(Math.sin(G.angle)*f+Math.cos(G.angle)*s*(spec.engine==="top"?1:0));
 if(spec.engine==="top"){dx=f*0+ (keys.d?1:0)-(keys.a?1:0)+mobile.x;dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l}
 let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
-G.enemies.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
+G.active.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
 let sp2=(e.boss?.7:.45)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=18*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
 G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;G.hp=Math.min(100,G.hp+20);G.ammo+=10;beep(880,.1)}});
 if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest()}}
-function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;beep(180,.06,"sawtooth");let best=null,bd=9;G.enemies.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++}beep(700,.05)}}
+function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
 function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
 function draw(){if(!spec||!G)return;let e=spec.engine;if(e==="3d"){if(!draw3D()){drawFPS();$("hud").innerHTML="WebGL unavailable — fell back to 2.5D raycaster (honest fallback). "+hudText()}}else if(e==="fps")drawFPS();else if(e==="top")drawTop();else drawSide();
 if(e!=="3d")$("hud").textContent=hudText()}
-function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.enemies.filter(x=>x.alive).length}`}
+function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
-function drawFPS(){let w=cv.width,h=cv.height;ctx.fillStyle="#ffe6f2";ctx.fillRect(0,0,w,h/2);ctx.fillStyle="#5b3550";ctx.fillRect(0,h/2,w,h/2);
-for(let col=0;col<w;col+=4){let a=G.angle-0.55+ (col/w)*1.1,d=0,x=G.px,y=G.py,dx=Math.cos(a),dy=Math.sin(a);while(d<20){x+=dx*.05;y+=dy*.05;d+=.05;if(wall(x,y))break}let wh=h/(d+.001);ctx.fillStyle=colors();ctx.fillRect(col,h/2-wh/2,4,wh)}
+function drawFPS(){let w=cv.width,h=cv.height;ctx.fillStyle="#ffe6f2";ctx.fillRect(0,0,w,h/2);let grd=ctx.createLinearGradient(0,h/2,0,h);grd.addColorStop(0,"#ff8fbf");grd.addColorStop(1,"#5b2a4a");ctx.fillStyle=grd;ctx.fillRect(0,h/2,w,h/2);
+for(let i=0;i<40;i++){ctx.fillStyle="#ffffff55";ctx.fillRect((i*97)%w,h/2+30+(i*53)%(h/2-30),4,4)}
+for(let col=0;col<w;col+=4){let a=G.angle-0.55+ (col/w)*1.1,d=0,x=G.px,y=G.py,dx=Math.cos(a),dy=Math.sin(a);while(d<20){x+=dx*.05;y+=dy*.05;d+=.05;if(wall(x,y))break}let wh=h/(d+.001);ctx.drawImage(WALLTEX,(col/w)*128,0,2,128,col,h/2-wh/2,4,wh)}
 spritesFPS()}
-function spritesFPS(){let t=Date.now()/300;G.enemies.forEach(e=>{if(!e.alive)return;let d=Math.hypot(e.x-G.px,e.y-G.py),a=Math.atan2(e.y-G.py,e.x-G.px)-G.angle;if(Math.abs(a)<.7&&d>0.3){let x=cv.width/2+Math.tan(a)*500,y=cv.height/2+Math.sin(t+e.pat)*4/Math.max(1,d),s=120/d*(e.boss?1.8:1);ctx.font=s+"px serif";ctx.fillText(e.boss?"👹":"🍬",x-s/2,y)}});spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
-G.pickups.forEach(p=>{if(!p.taken)ctx.fillText("🍭",cv.width/2-100+((p.x*37)%200),cv.height/2+60)})}
+function spritesFPS(){let t=Date.now()/300;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(e.x-G.px,e.y-G.py),a=Math.atan2(e.y-G.py,e.x-G.px)-G.angle;if(Math.abs(a)<.7&&d>0.3){let x=cv.width/2+Math.tan(a)*500,y=cv.height/2+Math.sin(t+e.pat)*4/Math.max(1,d),s=120/d*(e.boss?1.8:1);let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,x-s/2,y-s/2,s,s);if(e.boss){ctx.fillStyle="#ffe45e";ctx.font="20px serif";ctx.fillText("★",x-10,y-s/2)}}});spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});}
 function drawTop(){ctx.fillStyle="#20142c";ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":"#3a254d";ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
-let t=Date.now()/300;G.pickups.forEach(p=>{if(!p.taken)ctx.fillText("🍭",p.x*tw,p.y*th+th)});G.enemies.forEach(e=>{if(e.alive){ctx.font=(e.boss?30:20)+"px serif";ctx.fillText(e.boss?"👹":"🍬",e.x*tw+Math.sin(t)*2,e.y*th+th)}});spec.npcs.forEach(n=>ctx.fillText("🧁",n.x*tw,n.y*th+th));ctx.fillText("🧁",G.px*tw-8,G.py*th+8)}
-function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.enemies.forEach(e=>{if(e.alive)ctx.fillText(e.boss?"👹":"🍬",e.x*ts-cam,e.y*ts+28+bob)});ctx.font="28px serif";ctx.fillText("🧁",G.px*ts-cam,G.py*ts+28)}
+G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(PLAYERSPRITE,n.x*tw,n.y*th,tw,th));ctx.drawImage(PLAYERSPRITE,G.px*tw-8,G.py*th,tw,th)}
+function drawSide(){ctx.fillStyle="#bdefff";ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){let img=SPRITES[e.type]||SPRITES["Sprinkle Imp"];ctx.drawImage(img,e.x*ts-cam,e.y*ts+bob,ts,ts)}});ctx.drawImage(PLAYERSPRITE,G.px*ts-cam,G.py*ts,ts,ts)}
 // True 3D — raw WebGL, no libraries
 let gl=cv.getContext("webgl",{failIfMajorPerformanceCaveat:false})||null,glProg=null;
 function initGL(){if(!gl)return false;let vs=`attribute vec3 p;attribute vec3 c;varying vec3 v;uniform mat4 m;void main(){v=c;gl_Position=m*vec4(p,1.);}`,fs=`precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.);}`;
@@ -170,14 +231,15 @@ requestAnimationFrame(loop);
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")shoot();if(e.key.toLowerCase()==="r")G&&(G.ammo=30)});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv)G.angle+=e.movementX*.003});
 $("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
-$("mFire").onclick=shoot;$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
+$("mFire").onclick=shoot;let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
 let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
 // ---------- tabs ----------
 let tab=localStorage.getItem("ff_tab")||"make";function setTab(t){tab=t;localStorage.setItem("ff_tab",t);$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
 $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");setTab(tab);
 // ---------- feed / share / export ----------
 function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>`<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button></div>`).join("")||"No levels yet."}
-function renderFeedAdd(prompt,src){if(!spec)return;feed.unshift({title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
+function specHash(s){let m=s.map.map(r=>Array.isArray(r)?r.join(""):r);return btoa(unescape(encodeURIComponent(JSON.stringify(m)+s.title))).slice(0,80)}
+function renderFeedAdd(prompt,src){if(!spec)return;let h=specHash(spec);feed=feed.filter(f=>f.hash!==h);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
 window.playFeed=i=>loadSpec(feed[i].spec,"feed",feed[i].prompt);window.copyFeed=i=>{let s=btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec))));navigator.clipboard.writeText(location.href.split("#")[0]+"#level="+s);alert("Share link copied")};
 window.exportFeed=i=>{let blob=new Blob(['<!DOCTYPE html><html><head><meta charset=utf-8><title>'+feed[i].title+'</title></head><body><script>location.href='+JSON.stringify(location.href.split("#")[0])+'+"#level="+'+JSON.stringify(btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec)))))+'<\/script>Standalone export — opens the full engine with this level.</body></html>'],{type:"text/html"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="star-sprite-level.html";a.click()};
 // ---------- editor ----------
@@ -210,10 +272,61 @@ $("bitSend").onclick=()=>bitEdit($("bitInput").value);$("remix").onclick=()=>bit
 $("testBtn").onclick=()=>{let before=JSON.stringify(spec);normalize(spec);let p=spec.playerStart,g=spec.goal,seen=new Set([p.x+","+p.y]),q=[p];while(q.length){let c=q.shift();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let x=c.x+dx,y=c.y+dy,k=x+","+y;if(spec.map[y]&&spec.map[y][x]!=="#"&&!seen.has(k)){seen.add(k);q.push({x,y})}})}
 let unreachable=0;spec.enemies.concat(spec.pickups).forEach(e=>{if(!seen.has(e.x+","+e.y))unreachable++});let win=spec.engine==="side"?true:seen.has(g.x+","+g.y);let dist=Math.abs(g.x-p.x)+Math.abs(g.y-p.y);
 $("testReport").innerHTML=`<b>Auto-playtest (report only — level unchanged: ${before===JSON.stringify(spec)})</b><br>Winnable: ${win?"YES":"NO"} · Est. time ${(dist*1.4).toFixed(1)}s · Deaths ${win?0:1} · Kills on path ${Math.min(spec.enemies.length,Math.ceil(dist/3))} · Unreachable areas: ${unreachable}<br>Verdict: ${win?"Looks fair and finishable — give it a play!":"The goal may be blocked; check walls in the editor."}`};
+
+// ---------- Blender Gizmo ----------
+let lastBlenderPy="";
+function blenderScript(s){
+ let cubes=s.map.flatMap((r,y)=>[...r].map((c,x)=>c==="#"?`cube(${x},${-y},1,"Wall")`:"").filter(Boolean)).join("\n");
+ let foes=s.enemies.map(e=>`enemy(${e.x},${-e.y},"${e.type}",${!!e.boss})`).join("\n");
+ return `import bpy,math
+bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete()
+def mat(n,r,g,b):
+ m=bpy.data.materials.new(n);m.diffuse_color=(r,g,b,1);return m
+PINK=mat("KawaiiPink",1,.45,.7);CHOC=mat("Choc",.55,.3,.15);MINT=mat("Mint",.4,1,.85)
+def cube(x,y,z,k):
+ bpy.ops.mesh.primitive_cube_add(location=(x,y,z));o=bpy.context.object;o.name=k;o.data.materials.append(PINK if k=="Wall" else CHOC)
+def enemy(x,y,t,boss):
+ bpy.ops.mesh.primitive_uv_sphere_add(radius=1.4 if boss else .8,location=(x,y,1));o=bpy.context.object;o.name=t;o.data.materials.append(MINT)
+${cubes}
+${foes}
+bpy.ops.mesh.primitive_plane_add(size=100,location=(9,-6,0))
+bpy.ops.object.light_add(type='SUN',location=(10,-10,18))
+bpy.ops.object.camera_add(location=(9,8,16));bpy.context.object.rotation_euler=(.9,0,3.14)
+print("Star Sprite Gizmo built: ${s.title}")`;
+}
+let _gz=$("gizmoGo");if(_gz)_gz.onclick=async()=>{
+ let p=$("gizmoPrompt").value||"candy castle maze";
+ let s=genInstant(p,$("engineSel").value,$("diff").value,/boss/i.test(p));
+ if(/castle/i.test(p))s.theme="Candy Kingdom";
+ if(/forest|mint/i.test(p))s.theme="Berry Forest";
+ if(/arena|boss/i.test(p)){
+   s.boss=true;
+   s.enemies.push({x:s.goal.x-1,y:s.goal.y,type:"Cocoa Knight",hp:18,boss:true});
+ }
+ loadSpec(s,"blender-gizmo",p);
+ renderFeedAdd(p,"blender-gizmo");
+ lastBlenderPy=blenderScript(spec);
+ $("gizmoPy").value=lastBlenderPy;
+ try{
+   await fetch("http://127.0.0.1:8188/build",{method:"POST",body:lastBlenderPy});
+   $("gizmoStatus").textContent="Sent to local Blender bridge + playable here!";
+ }catch(e){
+   $("gizmoStatus").textContent="Playable here now. No local Blender bridge found — Download .py and Run Script in Blender.";
+ }
+ setTab("adv");
+};
+let _gd=$("gizmoDownload");if(_gd)_gd.onclick=()=>{
+ if(!lastBlenderPy)lastBlenderPy=blenderScript(spec);
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([lastBlenderPy],{type:"text/x-python"}));
+ a.download="star-sprite-blender.py";
+ a.click();
+};
+
 // ---------- main buttons ----------
-$("generate").onclick=async()=>{$("status").textContent="Generating… AI writes a spec (recipe), never code.";try{if($("artMode").value!=="painted"&&!localStorage.getItem("ff_key_meta"))throw new Error("Meta art modes need a saved Meta key — falling back to Painted.");let s=await aiGenerate();s.engine=$("engineSel").value;s.difficulty=$("diff").value;s.boss=$("boss").checked;loadSpec(s,"ai",$("prompt").value);$("status").innerHTML='<span class="ok">Generated & validated.</span>'}catch(e){$("status").innerHTML='<span class="err">'+e.message+' Trying one retry / fallback…</span>';try{let s=await aiGenerate(e.message);loadSpec(s,"ai-retry",$("prompt").value)}catch(e2){loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"fallback",$("prompt").value);$("status").innerHTML+='<br><span class="err">Fallback level loaded so you are never stuck.</span>'}}};
-$("instant").onclick=()=>loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"instant",$("prompt").value);
-$("demo").onclick=()=>loadSpec(demoSpec(),"demo","Built-in demo");$("shuffle").onclick=()=>{let t=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];$("prompt").value=t[Math.random()*t.length|0]};
+$("generate").onclick=async()=>{$("status").textContent="Generating… AI writes a spec (recipe), never code.";try{if($("artMode").value!=="painted"&&!localStorage.getItem("ff_key_meta"))throw new Error("Meta art modes need a saved Meta key — falling back to Painted.");let s=await aiGenerate();s.engine=$("engineSel").value;s.difficulty=$("diff").value;s.boss=$("boss").checked;loadSpec(s,"ai",$("prompt").value);renderFeedAdd($("prompt").value,"ai");$("status").innerHTML='<span class="ok">Generated & validated.</span>'}catch(e){$("status").innerHTML='<span class="err">'+e.message+' Trying one retry / fallback…</span>';try{let s=await aiGenerate(e.message);loadSpec(s,"ai-retry",$("prompt").value);renderFeedAdd($("prompt").value,"ai-retry")}catch(e2){loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"fallback",$("prompt").value);renderFeedAdd($("prompt").value,"fallback");$("status").innerHTML+='<br><span class="err">Fallback level loaded so you are never stuck.</span>'}}};
+$("instant").onclick=()=>{loadSpec(genInstant($("prompt").value,$("engineSel").value,$("diff").value,$("boss").checked),"instant",$("prompt").value);renderFeedAdd($("prompt").value,"instant")};
+$("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};$("shuffle").onclick=()=>{let t=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];$("prompt").value=t[Math.random()*t.length|0]};
 // shared-link boot
 try{if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
 renderFeed();
