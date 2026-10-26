@@ -142,7 +142,7 @@ let musicTimer=null;function startMusic(){if(musicTimer)return;let scales={"Cand
 document.addEventListener("pointerdown",()=>startMusic(),{once:true});
 
 // ---------- PSX kawaii textures + pixel sprites (v3, no emoji characters) ----------
-const BUF=document.createElement("canvas");BUF.width=320;BUF.height=240;
+const BUF=document.createElement("canvas");BUF.width=320;BUF.height=180;
 const B=BUF.getContext("2d");B.imageSmoothingEnabled=false;
 function pixTex(draw){
   const c=document.createElement("canvas");c.width=c.height=64;
@@ -230,9 +230,12 @@ if(e!=="3d")$("hud").textContent=hudText()}
 function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return{"Candy Kingdom":"#ff7ab6","Sugar Dungeon":"#8e6cc8","Berry Forest":"#4fbf7a","Chocolate Vault":"#a66a3f","Lemon Sky":"#ffd84d"}[spec.theme]||"#ff7ab6"}
 function drawFPS(){
-  const w=320,h=240;
-  for(let y=0;y<h/2;y+=4){B.drawImage(TEX_SKY,0,0,64,4,0,y,w,4);}
-  for(let y=h/2;y<h;y+=4){let p=(y-h/2)/(h/2);B.fillStyle=p<.3?"#7d4260":"#5b2a44";B.fillRect(0,y,w,4);B.drawImage(TEX_FLOOR,0,0,64,4,0,y,w,4);}
+  const w=320,h=180;
+  // Sky + floor as full textures, NOT top-slice bands.
+  // The old band code reused only the top 4px of each texture for every
+  // band, so any bright pixel in that slice became a vertical dashed line
+  // across the whole sky/floor. Full-texture draws fix that.
+  for(let tx=0;tx<w;tx+=64){B.drawImage(TEX_SKY,0,0,64,64,tx,0,64,h/2);B.drawImage(TEX_FLOOR,0,0,64,64,tx,h/2,64,h/2);}
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
   for(let col=0;col<w;col++){
@@ -242,7 +245,11 @@ function drawFPS(){
     let correct=d*Math.cos(a-G.angle);
     let wh=Math.min(h*1.4,h/(correct+.001));
     let tex=((side?y:x)%1+1)%1;
-    let texImg=((Math.floor(x)+Math.floor(y))%7==0)?TEX_CHOC:((Math.floor(x)+Math.floor(y))%3==0?TEX_MINT:TEX_WALL);
+    // Coherent walls: pink cake everywhere, chocolate only near the goal
+    // (boss area). The old %7/%3 patchwork made every 3rd/7th tile a
+    // different colour, which is why the walls looked random and weird.
+    let gx=spec.goal?spec.goal[0]:-99, gy=spec.goal?spec.goal[1]:-99;
+    let texImg=(Math.abs(Math.floor(x)-gx)<=2&&Math.abs(Math.floor(y)-gy)<=2)?TEX_CHOC:TEX_WALL;
     B.drawImage(texImg,Math.floor(tex*64),0,1,64,col,h/2-wh/2,1,wh);
     let fog=Math.min(.75,correct/16);
     B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
