@@ -120,6 +120,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <button class="alt" id="paintClear">Clear</button>
 <button id="paintApply">Apply Painting To Model</button>
 <button class="alt" id="paintWall">Apply Painting To Walls</button>
+<button class="alt" id="paintAddLib">Add painting to Texture Library</button>
 </div>
 <canvas id="paintCanvas" width="256" height="256" style="width:256px;height:256px;background:#fff;cursor:crosshair"></canvas>
 </div>
@@ -162,6 +163,7 @@ Groq games never call Meta.</small></p>
     <canvas id="imgPreview" width="256" height="256" style="width:256px;height:256px;border-radius:12px;border:2px solid #fff3"></canvas>
     <div class="row">
       <button id="imgApply">Apply To My Game</button>
+      <button class="alt" id="imgAddLib">Add this image to Texture Library</button>
       <button class="alt" id="imgRegen">Regenerate</button>
       <button class="alt" id="imgDownload">Download PNG</button>
     </div>
@@ -191,6 +193,77 @@ Groq games never call Meta.</small></p>
 <div class="row"><input id="freeTexUrlInput" size="52" placeholder="Or paste any image link"><button id="freeTexUrlBtn">Use link</button></div>
 <div class="row"><span id="freeTexSticky" class="small"></span><button id="freeTexClearBtn" style="display:none">Clear sticky textures</button></div>
 <div id="freeTexStatus"><small>No free texture picked yet.</small></div>
+</div>
+
+<div class="card" style="background:#10202e;border:2px solid #37e0ff">
+<h3>Offline Game Maker — Advanced (no key, no internet)</h3>
+<p><small>Build a complete playable game from dropdowns.
+Uses Poly Haven textures, Wonder/Painted textures, your
+uploads, and Layout Editor maps. Nothing is generated online.</small></p>
+
+<h4>World &amp; Map</h4>
+<div class="row">
+<label>Engine <select id="offEngine"><option value="fps">FPS 2.5D</option><option value="top">Top-view</option><option value="side">Side-scroll</option><option value="3d">True 3D</option></select></label>
+<label>Theme pack <select id="offTheme"><option>Space Station</option><option>Dark Dungeon</option><option>Haunted Manor</option><option>Pirate Ship</option><option>Wild West Town</option><option>Neon City</option><option>Toy Blocks</option><option>Candy Demo Style</option><option>Custom (my textures)</option></select></label>
+<label>Map layout <select id="offLayout"><option value="editor">Use Layout Editor map</option><option value="rooms" selected>Rooms &amp; corridors</option><option value="maze">Maze</option><option value="arena">Boss arena</option><option value="islands">Open islands</option><option value="random">Random ruins</option></select></label>
+<label>Map size <select id="offSize"><option value="14x10">Small 14×10</option><option value="18x13" selected>Medium 18×13</option><option value="24x16">Large 24×16</option><option value="30x20">Huge 30×20</option></select></label>
+<label>Wall density <select id="offDensity"><option value="0.08">Open</option><option value="0.16" selected>Normal</option><option value="0.26">Cluttered</option><option value="0.36">Maze-like</option></select></label>
+<label>Levels (campaign) <select id="offLevels"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>8</option></select></label>
+<label>Fog / mood <select id="offMood"><option>Clear day</option><option>Sunset</option><option>Night</option><option>Overcast</option><option>Neon night</option></select></label>
+</div>
+
+<h4>Textures — pick per surface</h4>
+<div class="row">
+<label>Walls <select id="offWallTex"></select></label>
+<label>Ground <select id="offFloorTex"></select></label>
+<label>Ceiling <select id="offCeilTex"></select></label>
+<label>Weapon skin <select id="offWeaponTex"></select></label>
+<label>Enemy skin <select id="offEnemyTex"></select></label>
+</div>
+<div class="row">
+<input type="file" id="offTexUpload" accept="image/*" multiple>
+<button class="alt" id="offTexUploadBtn">Upload textures to Library</button>
+<button class="alt" id="offTexRefresh">Refresh texture list</button>
+<span id="texLibCount"></span>
+</div>
+
+<h4>Enemies</h4>
+<div class="row">
+<label>Enemy count <select id="offEnemyCount"><option>3</option><option selected>6</option><option>9</option><option>12</option><option>18</option><option>24</option></select></label>
+<label>Enemy species <select id="offSpecies"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select></label>
+<label>Enemy speed <select id="offESpeed"><option value="0.3">Slow</option><option value="0.5" selected>Normal</option><option value="0.8">Fast</option><option value="1.1">Very fast</option></select></label>
+<label>Enemy health <select id="offEHP"><option value="2">Weak (2)</option><option value="3" selected>Normal (3)</option><option value="6">Tough (6)</option><option value="10">Brutal (10)</option></select></label>
+<label>Enemy damage <select id="offEDmg"><option value="6">Low</option><option value="12" selected>Normal</option><option value="20">High</option><option value="32">Deadly</option></select></label>
+<label>Behaviour <select id="offEBehave"><option value="chase">Chase player</option><option value="patrol" selected>Patrol, then chase</option><option value="guard">Guard their area</option><option value="mixed">Mixed per species</option></select></label>
+<label>Bosses <select id="offBoss"><option value="0">No boss</option><option value="1" selected>1 boss at goal</option><option value="2">Boss per 2 levels</option><option value="99">Boss every level</option></select></label>
+</div>
+
+<h4>Your Gun &amp; Player</h4>
+<div class="row">
+<label>Gun <select id="offGun"><option value="blaster">Blaster</option><option value="rifle">Rifle (slow, huge damage)</option><option value="smg">SMG (fast, low damage)</option><option value="shotgun">Scatter gun</option><option value="crossbow">Crossbow</option><option value="cannon">Cannon</option></select></label>
+<label>Gun damage <select id="offGunDmg"><option value="1" selected>1 hit-point</option><option value="2">2</option><option value="3">3</option></select></label>
+<label>Fire rate <select id="offFireRate"><option value="450">Slow</option><option value="260" selected>Normal</option><option value="140">Fast</option><option value="80">Minigun</option></select></label>
+<label>Ammo <select id="offAmmo"><option value="30">30</option><option value="60" selected>60</option><option value="120">120</option><option value="9999">Unlimited</option></select></label>
+<label>Player health <select id="offPHP"><option value="60">60 (hard)</option><option value="100" selected>100</option><option value="150">150</option><option value="250">250 (hero)</option></select></label>
+<label>Player speed <select id="offPSpeed"><option value="2.2">Careful</option><option value="2.8" selected>Normal</option><option value="3.6">Fast</option><option value="4.5">Speedrunner</option></select></label>
+</div>
+
+<h4>Extras</h4>
+<div class="row">
+<label>Difficulty <select id="offDiff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select></label>
+<label>Health pickups <select id="offHealth"><option>0</option><option selected>3</option><option>6</option><option>10</option></select></label>
+<label>Ammo pickups <select id="offAmmoP"><option>0</option><option selected>3</option><option>6</option><option>10</option></select></label>
+<label>Talking NPCs <select id="offNPC"><option>0</option><option selected>1</option><option>2</option><option>3</option></select></label>
+<label>Win condition <select id="offWin"><option value="goal">Reach the goal</option><option value="clear">Clear all enemies, then goal</option><option value="boss">Beat the boss, then goal</option></select></label>
+<label>Music <select id="offMusic"><option value="on">Procedural music on</option><option value="off">Music off</option></select></label>
+<label>Game title <input id="offTitle" size="26" placeholder="Auto-named if blank"></label>
+</div>
+
+<div class="row">
+<button id="offBuild" style="background:#37e0ff;color:#10202e">Build &amp; Play Offline Game</button>
+<button class="alt" id="offBuildFeed">Build &amp; Save To Feed</button>
+</div>
+<div id="offStatus"><small>Pick options, then Build. Use Layout Editor map = your hand-drawn map becomes the game.</small></div>
 </div>
 
 <h3>Hand editor — edits the spec only; art carries over</h3>
@@ -336,7 +409,7 @@ function repair(s){
   s.enemyTypes=s.enemyTypes.filter(t=>t&&t.id&&t.name&&Array.isArray(t.pixelRows)&&t.pixelRows.length>0).map(t=>{
     let mw=Math.max(...t.pixelRows.map(r=>String(r).length));
     let rows2=t.pixelRows.map(r=>String(r).padEnd(mw,"."));
-    return {id:String(t.id).slice(0,40),name:String(t.name).slice(0,40),description:String(t.description||"").slice(0,200),role:t.role||"chaser",hp:Math.max(1,Math.min(30,+t.hp||3)),speed:Math.max(0.1,Math.min(2,+t.speed||0.55)),damage:Math.max(1,Math.min(50,+t.damage||10)),size:Math.max(0.5,Math.min(2.5,+t.size||1)),primaryColor:hexOk(t.primaryColor)?t.primaryColor:"#b84a5a",secondaryColor:hexOk(t.secondaryColor)?t.secondaryColor:"#f2c14e",darkColor:hexOk(t.darkColor)?t.darkColor:"#20131f",eyeColor:hexOk(t.eyeColor)?t.eyeColor:"#ffffff",shape:t.shape||"generic",imagePrompt:String(t.imagePrompt||t.description||""),pixelPalette:(t.pixelPalette&&typeof t.pixelPalette==="object")?t.pixelPalette:{K:"#171321",B:"#b84a5a"},pixelRows:rows2,boss:!!t.boss};
+    return {id:String(t.id).slice(0,40),name:String(t.name).slice(0,40),description:String(t.description||"").slice(0,200),role:t.role||"chaser",hp:Math.max(1,Math.min(30,+t.hp||3)),speed:Math.max(0.1,Math.min(2,+t.speed||0.55)),damage:Math.max(1,Math.min(50,+t.damage||10)),size:Math.max(0.5,Math.min(2.5,+t.size||1)),primaryColor:hexOk(t.primaryColor)?t.primaryColor:"#b84a5a",secondaryColor:hexOk(t.secondaryColor)?t.secondaryColor:"#f2c14e",darkColor:hexOk(t.darkColor)?t.darkColor:"#20131f",eyeColor:hexOk(t.eyeColor)?t.eyeColor:"#ffffff",shape:t.shape||"generic",imagePrompt:String(t.imagePrompt||t.description||""),pixelPalette:(t.pixelPalette&&typeof t.pixelPalette==="object")?t.pixelPalette:{K:"#171321",B:"#b84a5a"},pixelRows:rows2,behavior:t.behavior,boss:!!t.boss};
   });
   if(s.enemyTypes.length===0) throw new Error("No usable enemy types after filtering. Generation is invalid.");
   let typeIds=new Set(s.enemyTypes.map(t=>t.id));
@@ -349,8 +422,8 @@ function repair(s){
     s.world={theme:String(wd.theme||"").slice(0,60),mood:String(wd.mood||"").slice(0,60),skyColor:hexOk(wd.skyColor)?wd.skyColor:"#08131f",floorColor:hexOk(wd.floorColor)?wd.floorColor:"#1b2533",wallColor:hexOk(wd.wallColor)?wd.wallColor:"#46617f",secondaryWallColor:hexOk(wd.secondaryWallColor)?wd.secondaryWallColor:"#2c435e",accentColor:hexOk(wd.accentColor)?wd.accentColor:"#62d8ff",wallDescription:String(wd.wallDescription||""),floorDescription:String(wd.floorDescription||""),skyDescription:String(wd.skyDescription||"")};
   }
   if(s.weapon){
-    let wp=s.weapon, kinds=["blaster","rifle","pistol","crossbow","staff","cannon","launcher","bow"];
-    s.weapon={name:String(wp.name||"").slice(0,40),description:String(wp.description||""),kind:kinds.includes(wp.kind)?wp.kind:"blaster",primaryColor:hexOk(wp.primaryColor)?wp.primaryColor:"#315a8c",secondaryColor:hexOk(wp.secondaryColor)?wp.secondaryColor:"#62d8ff",darkColor:hexOk(wp.darkColor)?wp.darkColor:"#101d33",crosshair:String(wp.crosshair||"circle"),projectileColor:hexOk(wp.projectileColor)?wp.projectileColor:"#aef4ff",fireSound:String(wp.fireSound||"laser")};
+    let wp=s.weapon, kinds=["blaster","rifle","pistol","crossbow","staff","cannon","launcher","bow","smg","shotgun"];
+    s.weapon={name:String(wp.name||"").slice(0,40),description:String(wp.description||""),kind:kinds.includes(wp.kind)?wp.kind:"blaster",primaryColor:hexOk(wp.primaryColor)?wp.primaryColor:"#315a8c",secondaryColor:hexOk(wp.secondaryColor)?wp.secondaryColor:"#62d8ff",darkColor:hexOk(wp.darkColor)?wp.darkColor:"#101d33",crosshair:String(wp.crosshair||"circle"),projectileColor:hexOk(wp.projectileColor)?wp.projectileColor:"#aef4ff",fireSound:String(wp.fireSound||"laser"),damage:wp.damage,fireRate:wp.fireRate,ammo:wp.ammo};
   }
   if(s.engine!=="side"){
     let p=s.playerStart, seen=new Set(), q=[p]; seen.add(p.x+","+p.y);
@@ -710,6 +783,7 @@ document.addEventListener("pointerdown",()=>startMusic(),{once:true});
 // ---------- PSX kawaii textures + pixel sprites (v3, no emoji characters) ----------
 const BUF=document.createElement("canvas");BUF.width=320;BUF.height=180;
 const B=BUF.getContext("2d");B.imageSmoothingEnabled=false;
+let ZBUF = new Float32Array(4096); // wall distance per render-buffer column
 function pixTex(draw){
   const c=document.createElement("canvas");c.width=c.height=64;
   const x=c.getContext("2d");draw(x);return c;
@@ -1200,10 +1274,10 @@ function resetGame(){
   normalize(spec);
   let p = find(spec,'P') || spec.playerStart || {x:1,y:1};
   spec.playerStart = p;
-  let all = (spec.enemies || []).map(e => {let t=enemyTypeFor(e)||{}; return {...e, alive:true, pat:Math.random()*6.28, hp:t.hp||3, speed:t.speed||0.55, damage:t.damage||10, size:t.size||1};});
+  let all = (spec.enemies || []).map(e => {let t=enemyTypeFor(e)||{}; return {...e, alive:true, pat:Math.random()*6.28, sx:e.x, sy:e.y, hp:t.hp||3, speed:t.speed||0.55, damage:t.damage||10, size:t.size||1};});
   G = {
     px:p.x+.5, py:p.y+.5, vx:0, vy:0, angle:0,
-    hp:100, ammo:30, kills:0, deaths:0,
+    hp:(spec.player&&spec.player.hp)||100, ammo:((spec.weapon&&spec.weapon.ammo!=null)?spec.weapon.ammo:30), kills:0, deaths:0,
     start:Date.now(), onGround:false, won:false,
     enemies: all,
     active: all.slice(0,3),
@@ -1219,10 +1293,31 @@ else if(spec.engine==="top"){let dx=(keys.d?1:0)-(keys.a?1:0)+mobile.x,dy=(keys.
 else{let dx=Math.cos(G.angle)*f - Math.sin(G.angle)*s, dy=Math.sin(G.angle)*f + Math.cos(G.angle)*s;
 let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
 G.active.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
-let _t=enemyTypeFor(e)||{}; if(_t.role==="stationary"){if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}} return;} let sp2=(e.speed||.55)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
-G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;G.hp=Math.min(100,G.hp+20);G.ammo+=10;beep(880,.1)}});
-if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest()}}
-function shoot(){if(!playing||G.ammo<=0)return;G.ammo--;lastShotAt=Date.now();beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp--;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
+let _t=enemyTypeFor(e)||{}; if(_t.role==="stationary"){if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}} return;} if(_t.behavior==="chase"){tx=G.px;ty=G.py;} else if(_t.behavior==="guard"){let sx0=(e.sx!=null?e.sx:e.x), sy0=(e.sy!=null?e.sy:e.y);let sd=Math.hypot(e.x-sx0,e.y-sy0);if(d<5&&sd<=3){tx=G.px;ty=G.py;}else if(sd>0.5){tx=sx0;ty=sy0;}else{tx=e.x;ty=e.y;}} let sp2=(e.speed||.55)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
+G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;let maxHp=(spec.player&&spec.player.hp)||100;if(p.kind==="health"){G.hp=Math.min(maxHp,G.hp+20);}else if(p.kind==="ammo"){G.ammo+=10;}else{G.hp=Math.min(maxHp,G.hp+20);G.ammo+=10;}beep(880,.1)}});
+if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest();
+  if(offlineCampaign && offlineLevelNo < offlineCampaign.total){
+    offlineLevelNo++;
+    setTimeout(() => {
+      let s = buildOfflineLevel(offlineLevelNo);
+      loadSpec(s, "offline-maker", "Offline Maker level " + offlineLevelNo);
+      applyOfflineTextures(spec);
+      draw();
+      $("offStatus").innerHTML = '<span class="ok">Level ' + offlineLevelNo + ' of ' + offlineCampaign.total + ': <b>' + spec.title + '</b></span>';
+    }, 1600);
+  } else if(offlineCampaign){
+    $("offStatus").innerHTML = '<span class="ok">Campaign complete! Build again with new options any time.</span>';
+    offlineCampaign = null;
+  }}}
+function hasLOS(x1, y1, x2, y2){
+  let d = Math.hypot(x2 - x1, y2 - y1), steps = Math.max(2, Math.ceil(d / 0.08));
+  for(let i = 1; i < steps; i++){
+    let t = i / steps;
+    if(wall(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)) return false;
+  }
+  return true;
+}
+function shoot(){if(!playing||G.ammo<=0)return;let now=Date.now();if(now-(G.lastShot||0)<(spec.weapon?.fireRate||260))return;G.lastShot=now;G.ammo--;lastShotAt=Date.now();beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;if(!hasLOS(G.px,G.py,e.x,e.y))return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp -= (spec.weapon && spec.weapon.damage) || 1;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
 function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
@@ -1314,6 +1409,7 @@ function drawFPS(){
     let dx=Math.cos(a),dy=Math.sin(a),d=0,x=px,y=py,side=0;
     while(d<18){x+=dx*.03;y+=dy*.03;d+=.03;if(wall(x,y)){side=Math.abs(x-Math.round(x))>Math.abs(y-Math.round(y))?1:0;break}}
     let correct=d*Math.cos(a-G.angle);
+    if(col < ZBUF.length) ZBUF[col] = correct;
     let wh=Math.min(h*1.4,h/(correct+.001));
     let tex=((side?y:x)%1+1)%1;
     // Walls come from the AI world (ART.wall), never from an engine style table.
@@ -1331,27 +1427,56 @@ function drawFPS(){
   ctx.imageSmoothingEnabled=false;
   ctx.clearRect(0,0,960,540);ctx.drawImage(BUF,0,0,960,540);
 }
+function drawSpriteOccluded(B, img, wx, wy, size, label){
+  if(!img) return {vis:false};
+  let dx = wx - G.px, dy = wy - G.py;
+  let dist = Math.hypot(dx, dy);
+  if(dist < 0.35) return {vis:false};
+  let ang = Math.atan2(dy, dx) - G.angle;
+  while(ang >  Math.PI) ang -= Math.PI*2;
+  while(ang < -Math.PI) ang += Math.PI*2;
+  if(Math.abs(ang) > 0.85) return {vis:false};
+  let w = B.width, h = B.height;
+  let s = Math.min(220, (size * 150) / dist);
+  let cx = w/2 + Math.tan(ang) * (w / 0.9);
+  let bob = Math.sin(Date.now()/180 + wx*2 + wy) * (3 / Math.max(1, dist));
+  let top = h/2 - s/2 + 12 + bob;
+  let left = cx - s/2;
+  let iw = img.width || 256, ih = img.height || 256;
+  for(let sx = Math.max(0, Math.floor(left)); sx < Math.min(w, left + s); sx++){
+    let wallDist = ZBUF[sx] || 99;
+    if(dist >= wallDist) continue; // WALL IS IN FRONT - do not draw this strip
+    let u = (sx - left) / s;
+    B.drawImage(img, Math.floor(u * iw), 0, Math.max(1, iw / s), ih, sx, top, 1.2, s);
+  }
+  let centreCol = Math.max(0, Math.min(B.width-1, Math.floor(cx)));
+  let vis = dist < (ZBUF[centreCol] || 99);
+  if(vis && label){
+    B.fillStyle = "#fff"; B.font = "8px monospace";
+    B.fillText(label, cx - s/2, top - 5);
+  }
+  return {vis:vis, left:left, top:top, s:s};
+}
 function drawSpritesPSX(B,w,h){
   let list=[...G.active.filter(e=>e.alive).map(e=>({t:"e",o:e,d:Math.hypot(e.x-G.px,e.y-G.py)})),
             ...spec.npcs.map(n=>({t:"n",o:n,d:Math.hypot(n.x-G.px,n.y-G.py)}))].sort((a,b)=>b.d-a.d);
   list.forEach(({t,o,d})=>{
-    let ang=Math.atan2(o.y-G.py,o.x-G.px)-G.angle;
-    while(ang>Math.PI)ang-=Math.PI*2;while(ang<-Math.PI)ang+=Math.PI*2;
-    if(Math.abs(ang)>.75||d<.3)return;
-    let _ot=enemyTypeFor(o)||{}; let s=Math.min(180,150/d*(o.boss?1.9:1)*(_ot.size||1));
-    let sx=w/2+Math.tan(ang)*(w/.9)-s/2;
-    let bob=Math.sin(Date.now()/180+o.x)* (3/Math.max(1,d));
-    let sy=h/2-s/2+10+bob;
-    if(t==="e"){B.drawImage(spriteFor(o),sx,sy,s,s);if(o.boss){B.fillStyle="#ffd84d";B.fillRect(sx+s*.38,sy-8,s*.24,8);}}
-    else{B.drawImage(spriteForNPC(o),sx,sy,s*.8,s*.8);B.fillStyle="#fff";B.fillRect(sx,sy-12,s,8);B.fillStyle="#241632";B.font="6px monospace";B.fillText(o.name,sx+2,sy-5);}
-    if(t==="e"){let _mx=(enemyTypeFor(o)||{}).hp||5;B.fillStyle="#ff2f86";B.fillRect(sx,sy-4,s*Math.min(1,o.hp/_mx),3);}
+    if(t==="e"){
+      let _ot=enemyTypeFor(o)||{};
+      let r=drawSpriteOccluded(B,spriteFor(o),o.x,o.y,(o.boss?1.9:1)*(_ot.size||1),"");
+      if(r&&r.vis){
+        if(o.boss){B.fillStyle="#ffd84d";B.fillRect(r.left+r.s*.38,r.top-8,r.s*.24,8);}
+        let _mx=_ot.hp||5;B.fillStyle="#ff2f86";B.fillRect(r.left,r.top-4,r.s*Math.min(1,o.hp/_mx),3);
+      }
+    }
+    else drawSpriteOccluded(B,spriteForNPC(o),o.x,o.y,0.8,o.name);
   });
   drawPropsBillboard(B,w,h);
   spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
 }
-function drawTop(){let _wc=worldColors();ctx.fillStyle=_wc.floorColor;ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"&&ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():c==="G"?"#ffe45e":c==="D"?_wc.secondaryWallColor:_wc.floorColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}}));
-G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th)}
-function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts)}
+function drawTop(){let _wc=worldColors();ctx.fillStyle=_wc.floorColor;ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D")return;ctx.fillStyle=c==="G"?"#ffe45e":_wc.floorColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
+G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D"){if(ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():_wc.secondaryWallColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}}}));}
+function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}}));}
 // True 3D — separate WebGL canvas, raw WebGL, no libraries
 let GLC=$("gameGL"), gl=GLC?GLC.getContext("webgl"):null, prog, uM, uC, aP, cubeBuf;
 function initGL(){
@@ -2232,6 +2357,207 @@ if($("freeTexRemoveBtn")) $("freeTexRemoveBtn").addEventListener("click", functi
   removeFreeTex($("freeTexTarget").value);
 });
 renderFreeTexGrid();
+
+// ---------- Star Sprite v29: texture library + Offline Game Maker ----------
+// One library holds every texture the maker can pick: the v28 Poly
+// Haven pack, Wonder Studio images, painted canvas work, and uploads.
+// The pasted patch referenced window.POLYHAVEN_TEXTURES but never
+// filled it, so the maker lists the v28 FREE_TEX_PACK as "poly:slug"
+// options and still honors POLYHAVEN_TEXTURES for future additions.
+window.POLYHAVEN_TEXTURES = window.POLYHAVEN_TEXTURES || {};
+let polyImgCache = {};
+function polyTexImage(slug){ if(!polyImgCache[slug]){ let im = new Image(); im.src = polyJpg(slug); polyImgCache[slug] = im; } return polyImgCache[slug]; }
+let TEXLIB = [];
+try{ TEXLIB = JSON.parse(localStorage.getItem("ff_texlib") || "[]"); }catch(e){ TEXLIB = []; }
+function texLibAdd(name, source, dataURL){
+  let id = "tex" + Date.now() + Math.floor(Math.random()*999);
+  let img = new Image();
+  img.onload = () => {
+    let c = document.createElement("canvas"); c.width = c.height = 512;
+    c.getContext("2d").drawImage(img, 0, 0, 512, 512);
+    TEXLIB.unshift({id, name, source, url: c.toDataURL("image/jpeg", .85)});
+    TEXLIB = TEXLIB.slice(0, 24);
+    try{ localStorage.setItem("ff_texlib", JSON.stringify(TEXLIB)); }catch(e){}
+    refreshTextureSelects();
+  };
+  img.src = dataURL;
+}
+function texLibCanvas(id){
+  if(!id || id === "default") return null;
+  if(id === "art_wall")  return ART.wall;
+  if(id === "art_floor") return ART.floor;
+  if(id === "art_ceiling") return ART.ceiling;
+  if(id.indexOf("poly:") === 0) return polyTexImage(id.slice(5));
+  if(window.POLYHAVEN_TEXTURES && POLYHAVEN_TEXTURES[id]) return POLYHAVEN_TEXTURES[id];
+  let e = TEXLIB.find(t => t.id === id);
+  if(!e) return null;
+  let img = new Image(); img.src = e.url; return img;
+}
+function refreshTextureSelects(){
+  let opts = '<option value="default">Engine default for this game</option>' +
+    '<option value="art_wall">Current game: wall image</option>' +
+    '<option value="art_floor">Current game: floor image</option>' +
+    '<option value="art_ceiling">Current game: ceiling image</option>';
+  if(typeof FREE_TEX_PACK !== "undefined") FREE_TEX_PACK.forEach(t => opts += '<option value="poly:' + t.slug + '">Poly Haven: ' + t.name + '</option>');
+  if(window.POLYHAVEN_TEXTURES) Object.keys(window.POLYHAVEN_TEXTURES).forEach(k => opts += '<option value="' + k + '">Poly Haven: ' + k + '</option>');
+  TEXLIB.forEach(t => opts += '<option value="' + t.id + '">' + t.source + ': ' + t.name + '</option>');
+  ["offWallTex","offFloorTex","offCeilTex","offWeaponTex","offEnemyTex"].forEach(id => {
+    let el = $(id); if(!el) return;
+    let keep = el.value; el.innerHTML = opts; if(keep) el.value = keep;
+  });
+}
+const OFF_THEMES = {
+ "Space Station":{sky:"#020610",wall:"#2b3a67",wall2:"#3f6fb5",floor:"#101827",accent:"#37e0ff",foes:["Rust Drone","Void Bot","Plasma Wraith"],gun:"Pulse"},
+ "Dark Dungeon":{sky:"#0a0806",wall:"#5a5148",wall2:"#6e6257",floor:"#24201c",accent:"#ffb347",foes:["Crypt Ghoul","Stone Golem","Ember Imp"],gun:"Rune"},
+ "Haunted Manor":{sky:"#050308",wall:"#3d3a4a",wall2:"#4a4557",floor:"#17141f",accent:"#b6ffce",foes:["Pale Ghost","Hex Doll","Grave Bat"],gun:"Hex"},
+ "Pirate Ship":{sky:"#061826",wall:"#6b4a2f",wall2:"#7d5a38",floor:"#1d3a4a",accent:"#ffd84d",foes:["Reef Raider","Deck Brute","Cursed Parrot"],gun:"Flint"},
+ "Wild West Town":{sky:"#2a1a0a",wall:"#a66a3f",wall2:"#8a542e",floor:"#6e4f2a",accent:"#ffd84d",foes:["Dust Outlaw","Coyote Spirit","Bank Brute"],gun:"Six"},
+ "Neon City":{sky:"#0a0a18",wall:"#2a2d3f",wall2:"#3a3f5c",floor:"#14161f",accent:"#ff3860",foes:["Street Punk","Neon Drone","Chrome Brute"],gun:"Neon"},
+ "Toy Blocks":{sky:"#87ceeb",wall:"#ffcf3f",wall2:"#3fa7ff",floor:"#2e8b57",accent:"#ff2f86",foes:["Wind-up Bot","Block Bear","Balloon Imp"],gun:"Bubble"},
+ "Candy Demo Style":{sky:"#2a1745",wall:"#ff7ab6",wall2:"#ffa4c8",floor:"#6b3550",accent:"#ff2f86",foes:["Sprinkle Imp","Custard Blob","Mint Wraith"],gun:"Sugar"},
+ "Custom (my textures)":{sky:"#101018",wall:"#555a6e",wall2:"#3a3f52",floor:"#1a1c26",accent:"#ffd84d",foes:["Guardian One","Guardian Two","Guardian Three"],gun:"Custom"}
+};
+const OFF_GUNS = {blaster:{name:"Blaster",cross:"◎"},rifle:{name:"Rifle",cross:"+"},smg:{name:"SMG",cross:"+"},
+                  shotgun:{name:"Scatter Gun",cross:"✦"},crossbow:{name:"Crossbow",cross:"◆"},cannon:{name:"Cannon",cross:"◎"}};
+function offMap(w, h, layout, density){
+  if(layout === "editor" && spec && spec.map) return spec.map.map(r => [...r]);
+  let m = blankMap(w, h);
+  let open = () => {
+    for(let t=0;t<200;t++){ let x=1+Math.random()*(w-2)|0, y=1+Math.random()*(h-2)|0;
+      if(m[y][x]===".") return {x,y}; } return {x:1,y:1};
+  };
+  if(layout === "maze"){
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) if(x%2 && y%2) m[y][x]="#";
+  } else if(layout === "arena"){
+    for(let i=0;i<8;i++){ let p=open(); m[p.y][p.x]="#"; }
+  } else if(layout === "islands"){
+    for(let i=0;i<10;i++){ let cx=2+Math.random()*(w-4)|0, cy=2+Math.random()*(h-4)|0;
+      for(let y=0;y<3;y++)for(let x=0;x<3;x++) if(m[cy+y] && m[cy+y][cx+x]!==undefined && Math.random()<.7) m[cy+y][cx+x]="#"; }
+  } else if(layout === "rooms"){
+    for(let i=0;i<Math.floor(w*h/55);i++){
+      let rw=3+Math.random()*4|0, rh=2+Math.random()*3|0, rx=1+Math.random()*(w-rw-2)|0, ry=1+Math.random()*(h-rh-2)|0;
+      for(let y=0;y<rh;y++)for(let x=0;x<rw;x++) m[ry+y][rx+x]="#";
+      m[ry+(rh>>1)][rx+(rw>>1)]=".";
+    }
+  } else {
+    let n = Math.floor(w*h*density);
+    for(let i=0;i<n;i++){ let p={x:1+Math.random()*(w-2)|0, y:1+Math.random()*(h-2)|0};
+      if(p.x>3||p.y>3) m[p.y][p.x]="#"; }
+  }
+  m[1][1]="P"; m[h-2][w-2]="G";
+  return m;
+}
+function buildOfflineLevel(levelNo){
+  let theme = OFF_THEMES[$("offTheme").value] || OFF_THEMES["Space Station"];
+  let [w,h] = $("offSize").value.split("x").map(Number);
+  let species = +$("offSpecies").value;
+  let foes = theme.foes.slice(0, species);
+  while(foes.length < species) foes.push(theme.foes[0] + " Mk" + (foes.length+1));
+  let gun = OFF_GUNS[$("offGun").value];
+  let s = {
+    title: ($("offTitle").value.trim() || $("offTheme").value + " — Offline Level " + levelNo),
+    theme: $("offTheme").value, artStyle: "custom", engine: $("offEngine").value,
+    difficulty: $("offDiff").value, boss: +$("offBoss").value > 0,
+    quest: ({goal:"Reach the goal ★", clear:"Clear every enemy, then reach the goal ★",
+             boss:"Beat the boss, then escape through the goal ★"})[$("offWin").value],
+    winCondition: $("offWin").value, mood: $("offMood").value,
+    world:{theme:$("offTheme").value, mood:$("offMood").value, skyColor:theme.sky, wallColor:theme.wall,
+           secondaryWallColor:theme.wall2, floorColor:theme.floor, accentColor:theme.accent,
+           wallDescription:theme.wall, floorDescription:theme.floor, skyDescription:theme.sky},
+    weapon:{name:theme.gun + " " + gun.name, kind:$("offGun").value, crosshair:gun.cross==="+"?"cross":gun.cross==="◆"?"diamond":"circle",
+            primaryColor:theme.wall2, secondaryColor:theme.accent, darkColor:"#14101f",
+            damage:+$("offGunDmg").value, fireRate:+$("offFireRate").value, ammo:+$("offAmmo").value,
+            description:theme.gun + " " + gun.name},
+    player:{hp:+$("offPHP").value, speed:+$("offPSpeed").value},
+    enemyTypes: foes.map((n,i)=>({id:"e"+i, name:n, hp:+$("offEHP").value, speed:+$("offESpeed").value,
+      damage:+$("offEDmg").value, behavior:$("offEBehave").value==="mixed" ? ["chase","patrol","guard"][i%3] : $("offEBehave").value,
+      size:1, primaryColor:theme.accent, secondaryColor:theme.wall, darkColor:"#14101f", eyeColor:"#fff",
+      pixelPalette:{K:"#14101f", B:theme.wall2, A:theme.accent, W:"#ffffff", E:"#14101f"},
+      pixelRows:["..KKKKKK..",".KBBBBBBK.","KBWWKKWWBK","KBWEKKWEBK","KBBBBBBBBK","KBAAAAAABK",".KBBBBBBK.","..KKKKKK.."]})),
+    map: [], enemies: [], pickups: [], npcs: []
+  };
+  s.map = offMap(w, h, $("offLayout").value, +$("offDensity").value);
+  let cells = [];
+  s.map.forEach((r,y)=>r.forEach((c,x)=>{ if(c==="." && (x>3||y>3)) cells.push({x,y}); }));
+  let take = () => cells.splice(Math.random()*cells.length|0, 1)[0] || {x:2,y:2};
+  let count = +$("offEnemyCount").value + (levelNo-1)*2;
+  for(let i=0;i<count;i++){ let c=take(); s.enemies.push({x:c.x, y:c.y, typeId:"e"+(i%species)}); }
+  let bossEvery = +$("offBoss").value;
+  if(bossEvery===99 || (bossEvery===1 && levelNo===+$("offLevels").value) || (bossEvery===2 && levelNo%2===0)){
+    let g = {x:w-2, y:h-2}; s.enemies.push({x:Math.max(1,g.x-1), y:g.y, typeId:"e0", boss:true});
+    s.enemyTypes[0] = {...s.enemyTypes[0], size:1.8};
+  }
+  for(let i=0;i<+$("offHealth").value;i++){ let c=take(); s.pickups.push({x:c.x,y:c.y,kind:"health",name:"Health Pack"}); }
+  for(let i=0;i<+$("offAmmoP").value;i++){ let c=take(); s.pickups.push({x:c.x,y:c.y,kind:"ammo",name:"Ammo Box"}); }
+  for(let i=0;i<+$("offNPC").value;i++){ let c=take();
+    s.npcs.push({id:"n"+i, name:["Scout","Keeper","Old Timer"][i%3], persona:"helpful local of " + s.theme,
+      greeting:"Offline level " + levelNo + " — the goal is far corner. Good luck!", x:c.x, y:c.y,
+      dialogue:["Watch the corners.","Three enemies at a time — use doorways.","The boss guards the goal.","The goal is in the far corner.","Good luck out there.","Come back and tell me how it went."]}); }
+  s.offlineTex = {wall:$("offWallTex").value, floor:$("offFloorTex").value, ceiling:$("offCeilTex").value,
+                  weapon:$("offWeaponTex").value, enemy:$("offEnemyTex").value};
+  return repair(s);
+}
+function watchOffImg(slot, img){
+  if(!img || !(img instanceof HTMLImageElement) || img.complete) return;
+  img.addEventListener("load", ()=>draw());
+  img.addEventListener("error", ()=>{
+    if(slot==="wall"){ ART.wall = makeTextureFromDesign(spec, "wall"); ART.wall2 = makeTextureFromDesign(spec, "wall-secondary"); }
+    if(slot==="floor"){ ART.floor = makeTextureFromDesign(spec, "floor"); }
+    if(slot==="ceiling"){ ART.ceiling = null; }
+    if(slot==="weapon"){ if(typeof buildWeaponArt==="function") buildWeaponArt(spec); }
+    if(slot==="enemy"){ (spec.enemyTypes||[]).forEach(type=>{ ART.sprites[type.id] = [spriteFromPixelRows(type, 0), spriteFromPixelRows(type, 1)]; }); }
+    draw();
+  });
+}
+function applyOfflineTextures(s){
+  if(!s.offlineTex) return;
+  let w = texLibCanvas(s.offlineTex.wall),  f = texLibCanvas(s.offlineTex.floor), c = texLibCanvas(s.offlineTex.ceiling);
+  let wp = texLibCanvas(s.offlineTex.weapon), en = texLibCanvas(s.offlineTex.enemy);
+  if(w){ ART.wall = w; if(w instanceof HTMLImageElement && !w.complete){ ART.wall2 = w; w.addEventListener("load", ()=>{ ART.wall2 = makeVariant(w); draw(); }); } else ART.wall2 = (typeof makeVariant==="function" ? makeVariant(w) : w); watchOffImg("wall", w); }
+  if(f){ ART.floor = f; watchOffImg("floor", f); }
+  if(c){ ART.ceiling = c; watchOffImg("ceiling", c); }
+  if(wp){ ART.weaponIdle = wp; ART.weaponFire = wp; ART.weaponFromMeta = true; watchOffImg("weapon", wp); }
+  if(en){ Object.keys(ART.sprites).forEach(k => ART.sprites[k] = [en, en]); watchOffImg("enemy", en); }
+  draw();
+}
+let offlineCampaign = null, offlineLevelNo = 1;
+function startOffline(saveToFeed){
+  offlineLevelNo = 1;
+  offlineCampaign = { total:+$("offLevels").value };
+  let s = buildOfflineLevel(1);
+  loadSpec(s, "offline-maker", "Offline Maker");
+  applyOfflineTextures(spec);
+  if(typeof refreshEnemyTypePicker==="function") refreshEnemyTypePicker();
+  if(typeof refreshImgEnemyPicker==="function") refreshImgEnemyPicker();
+  if($("offMusic").value === "off" && $("musicOn")) $("musicOn").checked = false;
+  if(saveToFeed) renderFeedAdd("Offline Maker: " + s.title, "offline-maker");
+  $("offStatus").innerHTML = '<span class="ok">Offline game built &amp; playing: <b>' + spec.title + '</b></span>' +
+    '<br><small>Level 1 of ' + offlineCampaign.total + ' · ' + spec.enemies.length + ' enemies · ' +
+    spec.enemyTypes.length + ' species · Gun: ' + spec.weapon.name + ' · Engine: ' + spec.engine + '</small>';
+  $("game").scrollIntoView({behavior:"smooth", block:"center"});
+}
+$("offBuild").onclick = () => startOffline(false);
+$("offBuildFeed").onclick = () => startOffline(true);
+$("offTexUploadBtn").onclick = () => {
+  [...$("offTexUpload").files].forEach(f => {
+    let r = new FileReader();
+    r.onload = () => texLibAdd(f.name.replace(/\.\w+$/,""), "Upload", r.result);
+    r.readAsDataURL(f);
+  });
+  $("texLibCount").textContent = "Adding to Texture Library...";
+};
+$("offTexRefresh").onclick = () => { refreshTextureSelects();
+  $("texLibCount").textContent = TEXLIB.length + " textures in your Library (upload/Wonder/painted) + Poly Haven + current game images."; };
+if($("imgAddLib")) $("imgAddLib").onclick = () => {
+  if(!wonderPending) return alert("Generate an image first.");
+  texLibAdd(wonderPending.target + " texture", "Wonder", wonderPending.canvas.toDataURL());
+  if($("imgStatus")) $("imgStatus").innerHTML = "<small>Added to Texture Library.</small>";
+};
+if($("paintAddLib")) $("paintAddLib").onclick = () => {
+  let pc = $("paintCanvas"); if(!pc) return;
+  texLibAdd("Painted texture", "Painted", pc.toDataURL());
+};
+refreshTextureSelects();
 
 if($("imgDownload")) $("imgDownload").onclick = () => {
   if(!wonderPending) return;
