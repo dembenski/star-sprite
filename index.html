@@ -667,7 +667,7 @@ async function buildMetaArtPack(spec, onStatus){
   let jobs = [];
   jobs.push(["wall texture", async()=>{
     ART.wall = metaCanvas(await metaImage(
-      "Seamless tileable video game wall texture, flat front-on view, pattern fills the entire frame edge to edge, no scene, no horizon, no sky, no floor, no characters, no objects, no text, retro 3D game wall texture. Material and colours inspired by: " +
+      "Seamless tileable video game wall texture, flat front-on view, dense small-scale repeating pattern, uniform across the whole frame, pattern fills the entire frame edge to edge, no scene, no horizon, no sky, no floor, no characters, no objects, no large shapes, no wide bands, no text, retro 3D game wall texture. Material and colours inspired by: " +
       (world.wallDescription||"")));
   }]);
   if(mode==="full"){
