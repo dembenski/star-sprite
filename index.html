@@ -185,8 +185,34 @@ Groq games never call Meta.</small></p>
 <div class="row"><button id="saveEdit">Save edited level to feed</button><button id="playEdit" class="alt">Play edited</button>
 <button id="copySpec" class="alt">Copy spec</button><button id="pasteSpec" class="alt">Paste spec</button>
 <button id="testBtn" class="alt">Test my level (auto-playtest bot)</button></div><div id="testReport"></div>
+<div class="card" style="background:#2b1238;border:2px solid #ffd84d">
+  <h3>Wonder Remix — Muse Wonder Remixes My Game</h3>
+  <p><small>Muse Wonder takes your CURRENT game and completely
+  remixes it. Everything can change. This button always uses
+  Meta Muse Wonder — never Groq — and needs your saved Meta key.</small></p>
+  <div class="row">
+    <label>Remix style:
+    <select id="remixMode">
+      <option value="twist">Fresh Twist (same soul, new game)</option>
+      <option value="total" selected>Total Transformation (almost everything changes)</option>
+      <option value="genre">Genre Swap (same map idea, wild new genre)</option>
+    </select></label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="remixKeepEngine" checked> Keep same engine (FPS / Top / Side / 3D)</label>
+    <label><input type="checkbox" id="remixKeepDiff"> Keep same difficulty</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="remixArt"> Also generate fresh Wonder images (walls/floor/enemies/weapon) if Art Mode is Mixed/Full — costs extra</label>
+  </div>
+  <div class="row">
+    <input id="remixNote" size="52" placeholder="Optional: tell Wonder what to change — 'make it underwater', 'more bosses', 'spookier'">
+    <button id="remixWonder" style="background:#ffd84d;color:#241632">Remix My Game with Muse Wonder</button>
+  </div>
+  <div id="remixStatus"><small>No remix yet. Generate or load a game first, then remix it.</small></div>
+</div>
 <h3>Talk to the engine — with Bit</h3><div class="chat" id="bitLog">Bit: Tell me a change. Bit editing needs a saved key for the selected provider — Bit never invents enemies, weapons or palettes offline.</div>
-<div class="row"><input id="bitInput" size="50" placeholder="Talk to Bit..."><button id="bitSend">Ask Bit</button><button id="remix" class="alt">Remix (one-shot)</button></div>
+<div class="row"><input id="bitInput" size="50" placeholder="Talk to Bit..."><button id="bitSend">Ask Bit</button></div>
 </div><div>
 <h3>Spec</h3><textarea id="specBox" rows="22" cols="38"></textarea>
 <h3>Talking NPC</h3><div class="chat" id="npcLog">Walk near an NPC in game, then chat here. NPCs never go silent.</div>
@@ -408,6 +434,118 @@ $("provider").onchange=()=>{
     ? p.label+" key loaded from this browser."
     : "No "+p.label+" key saved yet - Generate will say so, it will not borrow the other provider.";
 };
+// Locked Meta/Muse Wonder provider - this button NEVER
+// reads the provider dropdown and NEVER falls back to Groq.
+const WONDER = { id:"meta", label:"Meta AI (Recommended)",
+                 url:"https://api.meta.ai/v1/chat/completions",
+                 model:"muse-wonder-1.0", keySlot:"ff_key_meta" };
+
+async function wonderRemix(extraError){
+  let mode = $("remixMode").value;
+  let note = $("remixNote").value.trim();
+
+  let modeText = {
+    twist: "Keep the heart of the original game, but invent a clearly new title, map layout, enemy species, weapon, palette and quest.",
+    total: "TOTAL TRANSFORMATION: keep only a faint inspiration from the original. New title, new world, new palette, new map, new enemy species, new weapon, new NPCs, new quest.",
+    genre: "GENRE SWAP: take the original game's idea and rebuild it in a completely different genre and mood, with matching world, enemies, weapon and palette."
+  }[mode];
+
+  let sys = `Return ONLY valid JSON. No markdown fences. No commentary.
+You are Bit, remixing a complete game for the Star Sprite engine.
+Invent EVERYTHING fresh: title, quest, world theme/mood, full colour
+palette as #rrggbb hex colours (skyColor, floorColor, wallColor, secondaryWallColor, accentColor),
+wall/floor/sky descriptions, ONE original weapon (name, description, kind,
+primaryColor, secondaryColor, darkColor, crosshair, projectileColor, all colours as #rrggbb hex),
+2-5 original enemyTypes (id, name, description, hp, speed, damage, size,
+primaryColor, secondaryColor, darkColor, eyeColor, all colours as #rrggbb hex, shape, imagePrompt,
+pixelPalette, pixelRows - a recognisable front-facing sprite, all rows
+the same length, "." = transparent), enemy placements by typeId,
+pickups, and NPCs with names, personas, greetings and at least 6 dialogue
+lines each. Map: 14-20 columns, 10-14 rows, every row the SAME length,
+complete # border, exactly one P and one G, only characters # . P G D,
+4-12 enemies inside the walls. Pick colours that fit the new world -
+do NOT default to pink/dessert unless the remix itself calls for it.
+Original names only, no trademark names. This must be a NEW game,
+not the original with a new title.`;
+
+  let txt = await llmProvider(WONDER, [
+    {role:"system", content:sys},
+    {role:"user", content:
+      "REMIX INSTRUCTION: " + modeText +
+      (note ? "\nUSER'S REMIX REQUEST: " + note : "") +
+      "\nEngine: " + ($("remixKeepEngine").checked ? spec.engine : $("engineSel").value) +
+      " Difficulty: " + ($("remixKeepDiff").checked ? spec.difficulty : $("diff").value) +
+      " Boss mode: " + $("boss").checked +
+      (extraError ? "\nIMPORTANT FIX FROM LAST ATTEMPT: " + extraError : "") +
+      "\nVariation seed: " + Date.now() +
+      "\n\nTHE CURRENT GAME TO REMIX (JSON):\n" + JSON.stringify(spec)}
+  ]);
+
+  let s = parseJSON(txt);   // JSON error is called a JSON error, never a network error
+  s.engine     = $("remixKeepEngine").checked ? spec.engine : $("engineSel").value;
+  s.difficulty = $("remixKeepDiff").checked ? spec.difficulty : $("diff").value;
+  s.boss       = $("boss").checked;
+  let vErr = validateManifestAI(s);
+  if(vErr) throw new Error("Manifest validation failed: " + vErr);
+  delete s.customArt;       // a total remix gets a fresh art pack, not the old game's skins
+  delete s.savedArt;        // same for v21 snapshots: the old game's Meta pictures must not ride along
+  return repair(s);
+}
+
+$("remixWonder").onclick = async () => {
+  if(!spec){ $("remixStatus").textContent = "Load or generate a game first, then remix it."; return; }
+  if(!localStorage.getItem("ff_key_meta")){
+    $("remixStatus").innerHTML =
+      '<span class="err">Wonder Remix needs your saved META key (top of page). ' +
+      'Your current game was NOT changed, and Groq was not used instead.</span>';
+    return;
+  }
+
+  let beforeTitle = spec.title;
+  let beforeJSON  = JSON.stringify(spec);   // safety snapshot
+  $("remixWonder").disabled = true;
+  $("remixStatus").textContent =
+    "Muse Wonder (muse-wonder-1.0) is completely remixing '" + beforeTitle + "'… Groq is not being used.";
+
+  try {
+    let s = await wonderRemix();
+    loadSpec(s, "wonder-remix", "Wonder Remix of " + beforeTitle);
+    renderFeedAdd("Wonder Remix of " + beforeTitle, "wonder-remix");  // exactly ONE feed card
+    if(typeof refreshImgEnemyPicker === "function") refreshImgEnemyPicker();
+
+    $("remixStatus").innerHTML =
+      '<span class="ok">Remixed by <b>Muse Wonder</b> alone &amp; now showing: <b>' + spec.title + '</b></span>' +
+      '<br><small>Was: ' + beforeTitle + ' → Now: ' + spec.title +
+      '<br>Enemies Wonder invented: ' + (spec.enemyTypes||[]).map(t=>t.name).join(", ") +
+      '<br>Weapon Wonder invented: ' + (spec.weapon ? spec.weapon.name : "—") + '</small>';
+
+    // Optional: fresh Wonder images for the remixed game (routed
+    // through startMetaArt so the v20 load bar shows and the v21
+    // feed card gains the fresh art when the run finishes).
+    if($("remixArt").checked && $("artMode").value !== "painted"){
+      $("remixStatus").innerHTML += "<br><small>Now asking Meta for fresh Wonder images for the remix…</small>";
+      startMetaArt(WONDER);
+    }
+  } catch(e) {
+    $("remixStatus").innerHTML =
+      '<span class="err">Muse Wonder remix failed: ' + e.message + ' Retrying ONCE with Muse Wonder only…</span>';
+    try {
+      let s = await wonderRemix(e.message);
+      loadSpec(s, "wonder-remix-retry", "Wonder Remix of " + beforeTitle);
+      renderFeedAdd("Wonder Remix of " + beforeTitle, "wonder-remix-retry");
+      $("remixStatus").innerHTML =
+        '<span class="ok">Remixed by Muse Wonder on retry &amp; now showing: <b>' + spec.title + '</b></span>';
+    } catch(e2) {
+      // Total failure: restore the exact game you had. No demo. No Groq. No invented game.
+      loadSpec(JSON.parse(beforeJSON), "remix-aborted", beforeTitle);
+      $("remixStatus").innerHTML +=
+        '<br><span class="err">Remix did not happen (' + e2.message + '). Your original game "' +
+        beforeTitle + '" is still loaded and unchanged.</span>';
+    }
+  }
+  $("remixWonder").disabled = false;
+};
+
 function parseJSON(t){
   let txt=String(t).replace(/```json|```/g,"").trim();
   try{return JSON.parse(txt)}catch(e){
