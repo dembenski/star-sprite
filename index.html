@@ -1533,7 +1533,14 @@ function wonderPromptFor(target, enemyId){
   let custom = $("imgPrompt").value.trim();
   let w = spec.world || {}, wp = spec.weapon || {};
   let tech = "high resolution, detailed, sharp, no text, no watermark, retro-modern 3D game asset";
-  if(custom) return custom + ", " + tech;
+  let suffix = {
+    wall: "seamless tileable video game WALL texture, front-on flat texture, no characters, no perspective",
+    floor: "seamless tileable video game FLOOR texture, top-down flat texture, no characters",
+    ceiling: "seamless tileable video game CEILING texture, viewed from directly below, flat texture, no characters",
+    weapon: "first-person video game weapon viewmodel, one weapon only, no hands, no character, centred low in frame, SOLID PURE MAGENTA #FF00FF background",
+    enemy: "one full-body front-facing video game enemy sprite, whole character visible, no other characters, SOLID PURE MAGENTA #FF00FF background"
+  }[target] || "seamless tileable video game texture, flat, no characters";
+  if(custom) return custom + ", " + suffix + ", " + tech;
   switch(target){
     case "wall": return (w.wallDescription||"original game wall") + ", seamless tileable video game WALL texture, front-on flat texture, no characters, no perspective, " + tech;
     case "floor": return (w.floorDescription||"original game floor") + ", seamless tileable video game FLOOR texture, top-down flat texture, no characters, " + tech;
