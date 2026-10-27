@@ -174,6 +174,25 @@ Groq games never call Meta.</small></p>
 </div>
 </div>
 
+<div class="card" style="background:#241233;border:2px solid #62d8ff">
+<h3>Free textures — Poly Haven (CC0, free)</h3>
+<p><small>Free CC0 textures from Poly Haven (public domain, no attribution). Pick a surface, then click a texture to put it on this level. It rides in the level's shared link, feed save, and export, and sticks to newly generated or remixed levels until you clear it. Needs internet — if a texture fails to load, the level keeps its current look. Painted textures are already built into every level; this card only adds the free photo textures.</small></p>
+<div class="row">
+  <label>Apply to:
+  <select id="freeTexTarget">
+    <option value="wall">Walls</option>
+    <option value="floor">Ground / Floor</option>
+    <option value="ceiling">Ceiling / Sky</option>
+  </select></label>
+  <button id="freeTexRemoveBtn">Remove from this level</button>
+</div>
+<div class="row" id="freeTexCats"></div>
+<div id="freeTexGrid"></div>
+<div class="row"><input id="freeTexUrlInput" size="52" placeholder="Or paste any image link"><button id="freeTexUrlBtn">Use link</button></div>
+<div class="row"><span id="freeTexSticky" class="small"></span><button id="freeTexClearBtn" style="display:none">Clear sticky textures</button></div>
+<div id="freeTexStatus"><small>No free texture picked yet.</small></div>
+</div>
+
 <h3>Hand editor — edits the spec only; art carries over</h3>
 <div class="row"><select id="tool"><option value="#">Wall</option><option value=".">Floor</option><option value="D">Locked door</option><option value="P">Player start</option><option value="G">Goal exit</option><option value="E">Enemy (type picker)</option><option value="*">Pickup</option><option value="N">NPC</option><option value="er">Eraser</option><option value="sk">Sketch</option></select>
 <select id="etype"><option value="">Enemy type (loads with level)...</option></select>
@@ -531,9 +550,9 @@ async function remixHighResArt(){
   };
   let toJpeg = (src)=>{ let c = metaCanvas(src); return c.toDataURL("image/jpeg", .82); };
   let jobs = [];
-  jobs.push(["wall texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("wall"))); ART.wall = c; ART.wall2 = makeVariant(c); (spec.customArt = spec.customArt || {}).wall = c.toDataURL("image/jpeg", .82); }]);
-  jobs.push(["floor texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("floor"))); ART.floor = c; (spec.customArt = spec.customArt || {}).floor = c.toDataURL("image/jpeg", .82); }]);
-  jobs.push(["ceiling texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("ceiling"))); ART.ceiling = c; (spec.customArt = spec.customArt || {}).ceiling = c.toDataURL("image/jpeg", .82); }]);
+  jobs.push(["wall texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("wall"))); ART.wall = c; ART.wall2 = makeVariant(c); (spec.customArt = spec.customArt || {}).wall = c.toDataURL("image/jpeg", .82); if(spec.freeTex) delete spec.freeTex.wall; }]);
+  jobs.push(["floor texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("floor"))); ART.floor = c; (spec.customArt = spec.customArt || {}).floor = c.toDataURL("image/jpeg", .82); if(spec.freeTex) delete spec.freeTex.floor; }]);
+  jobs.push(["ceiling texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("ceiling"))); ART.ceiling = c; (spec.customArt = spec.customArt || {}).ceiling = c.toDataURL("image/jpeg", .82); if(spec.freeTex) delete spec.freeTex.ceiling; }]);
   let types = [...new Map((spec.enemyTypes||[]).map(e=>[e.id, e])).values()].slice(0,3);
   types.forEach(t=>{
     jobs.push(["sprite: "+t.name, async()=>{ let img = await metaImage(promptFor("enemy", t.id)); let c = chromaKey(img); ART.sprites[t.id] = [c, c]; (spec.customArt = spec.customArt || {})["enemy_"+t.id] = toJpeg(img); }]);
@@ -578,6 +597,7 @@ $("remixWonder").onclick = async () => {
 
   try {
     let s = await wonderRemix();
+    applyStickyFreeTex(s);
     loadSpec(s, "wonder-remix", "Wonder Remix of " + beforeTitle);
     renderFeedAdd("Wonder Remix of " + beforeTitle, "wonder-remix");  // exactly ONE feed card
     if(typeof refreshImgEnemyPicker === "function") refreshImgEnemyPicker();
@@ -597,6 +617,7 @@ $("remixWonder").onclick = async () => {
       '<span class="err">Muse Wonder remix failed: ' + e.message + ' Retrying ONCE with Muse Wonder only…</span>';
     try {
       let s = await wonderRemix(e.message);
+      applyStickyFreeTex(s);
       loadSpec(s, "wonder-remix-retry", "Wonder Remix of " + beforeTitle);
       renderFeedAdd("Wonder Remix of " + beforeTitle, "wonder-remix-retry");
       $("remixStatus").innerHTML =
@@ -875,6 +896,7 @@ async function buildMetaArtPack(spec, onStatus){
       "Seamless tileable video game wall texture, flat front-on view, dense small-scale repeating pattern, uniform across the whole frame, pattern fills the entire frame edge to edge, no scene, no horizon, no sky, no floor, no characters, no objects, no large shapes, no wide bands, no text, retro 3D game wall texture. Material and colours inspired by: " +
       (world.wallDescription||"")));
     ART.wallFromMeta = true;
+    if(spec.freeTex) delete spec.freeTex.wall;
   }]);
   if(mode==="full"){
     jobs.push(["floor texture", async()=>{
@@ -882,6 +904,7 @@ async function buildMetaArtPack(spec, onStatus){
         (world.floorDescription||"") +
         ", seamless tileable game texture, top-down, no text, no characters, retro 3D game floor texture"));
       ART.floorFromMeta = true;
+      if(spec.freeTex) delete spec.freeTex.floor;
     }]);
     let types = [...new Map((spec.enemies||[]).map(e=>[e.typeId, e])).values()].slice(0,3);
     types.forEach(pe=>{
@@ -1161,6 +1184,7 @@ function loadSpec(s,src,promptText){
   buildWeaponArt(spec);
   restoreSavedArt();
   restoreCustomArt();
+  restoreFreeTex();
   resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
   $("hud").textContent = "NEW LEVEL LOADED: "+spec.title+" · "+spec.engine+" · "+hudText();
@@ -1226,9 +1250,13 @@ function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.h
 function colors(){return worldColors().wall}
 function texPixels(img){
   if(img._px) return img._px;
+  if(img._pxTainted) return null;
   let c=document.createElement("canvas"); c.width=img.width; c.height=img.height;
   let x=c.getContext("2d"); x.drawImage(img,0,0);
-  let px={w:img.width,h:img.height,d:x.getImageData(0,0,c.width,c.height).data};
+  let d;
+  try{ d = x.getImageData(0,0,c.width,c.height).data; }
+  catch(e){ try{ img._pxTainted = true; }catch(_){} return null; }
+  let px={w:img.width,h:img.height,d:d};
   try{ img._px = px; }catch(e){}
   return px;
 }
@@ -1239,6 +1267,7 @@ function texPixels(img){
 // instead of being squashed into repeated tiles.
 function drawPlaneCast(B,w,h,img,top,px,py,angle){
   let tex = texPixels(img);
+  if(!tex) return false;
   let half = h>>1;
   let out = B.createImageData(w,half);
   let od = out.data;
@@ -1263,6 +1292,7 @@ function drawPlaneCast(B,w,h,img,top,px,py,angle){
     }
   }
   B.putImageData(out, 0, top ? 0 : half);
+  return true;
 }
 function drawFPS(){
   const w=BUF.width,h=BUF.height;
@@ -1273,12 +1303,10 @@ function drawFPS(){
   let _wc = worldColors();
   let _floorImg = ART.floor || makeTextureFromDesign(spec, "floor");
   if(ART.ceiling){
-    if(ART.ceiling.width>256) drawPlaneCast(B,w,h,ART.ceiling,true,G.px,G.py,G.angle);
-    else for(let tx=0;tx<w;tx+=64){B.drawImage(ART.ceiling,tx,0,64,h/2);}
+    if(!(ART.ceiling.width>256 && drawPlaneCast(B,w,h,ART.ceiling,true,G.px,G.py,G.angle))) for(let tx=0;tx<w;tx+=64){B.drawImage(ART.ceiling,tx,0,64,h/2);}
   }
   else {B.fillStyle=_wc.skyColor; B.fillRect(0,0,w,h/2);}
-  if(_floorImg.width>256) drawPlaneCast(B,w,h,_floorImg,false,G.px,G.py,G.angle);
-  else for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
+  if(!(_floorImg.width>256 && drawPlaneCast(B,w,h,_floorImg,false,G.px,G.py,G.angle))) for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
   for(let col=0;col<w;col++){
@@ -1962,6 +1990,7 @@ function saveCustomArt(target, enemyId, canvas){
   if(target==="weapon" || target==="enemy"){ sx.fillStyle="#FF00FF"; sx.fillRect(0,0,512,512); }
   sx.drawImage(canvas,0,0,512,512);
   spec.customArt[key] = small.toDataURL("image/jpeg", .82);
+  if((target==="wall" || target==="floor" || target==="ceiling") && spec.freeTex) delete spec.freeTex[target];
   $("specBox").value = JSON.stringify(spec, null, 1);
   updateFeedCardArt();
 }
@@ -2035,6 +2064,175 @@ function restoreCustomArt(){
     img.src = url;
   });
 }
+// ---------- Star Sprite v28: free textures (Poly Haven CC0) ----------
+// Ports the prototype's texture picker: 40 free CC0 textures from Poly
+// Haven (public domain, no attribution), a paste-any-image-link row,
+// and sticky textures that carry to newly generated or remixed levels.
+function polyJpg(slug){ return "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/" + slug + "/" + slug + "_diff_1k.jpg"; }
+function polyThumb(slug, v){ return "https://cdn.polyhaven.com/asset_img/thumbs/" + slug + ".png?width=256&height=256&format=webp" + (v ? "&v=" + v : ""); }
+var FREE_TEX_PACK = [
+  { slug: "brick_wall_001", name: "Brick Wall 001", cat: "Brick", v: "99965586" },
+  { slug: "brick_4", name: "Brick 4", cat: "Brick", v: "c9dcb19e" },
+  { slug: "brick_wall_003", name: "Brick Wall 003", cat: "Brick", v: "1d3ae57c" },
+  { slug: "brick_wall_005", name: "Brick Wall 005", cat: "Brick", v: "88b0a6bd" },
+  { slug: "brick_wall_006", name: "Brick Wall 006", cat: "Brick", v: "3dc7d736" },
+  { slug: "brick_wall_02", name: "Brick Wall 02", cat: "Brick", v: "8eaefc7c" },
+  { slug: "brown_planks_03", name: "Brown Planks 03", cat: "Wood", v: "381b1765" },
+  { slug: "brown_planks_05", name: "Brown Planks 05", cat: "Wood", v: "09e3d5b3" },
+  { slug: "brown_planks_04", name: "Brown Planks 04", cat: "Wood", v: "c29a2c23" },
+  { slug: "blue_painted_planks", name: "Blue Painted Planks", cat: "Wood", v: "063cb6b4" },
+  { slug: "beam_wall_01", name: "Beam Wall 01", cat: "Wood", v: "6d81b893" },
+  { slug: "bamboo_wall_02", name: "Bamboo Wall 02", cat: "Wood", v: "17e3595a" },
+  { slug: "broken_wall", name: "Broken Wall", cat: "Stone", v: "c672132c" },
+  { slug: "castle_wall_varriation", name: "Castle Wall", cat: "Stone", v: "3d6e26b0" },
+  { slug: "aerial_rocks_02", name: "Aerial Rocks 02", cat: "Stone", v: "8146a458" },
+  { slug: "coast_sand_rocks_02", name: "Coast Sand Rocks 02", cat: "Stone", v: "63f92b86" },
+  { slug: "coral_stone_wall", name: "Coral Stone Wall", cat: "Stone", v: "50639400" },
+  { slug: "coral_fort_wall_03", name: "Coral Fort Wall 03", cat: "Stone", v: "e0cc6108" },
+  { slug: "concrete_wall_009", name: "Concrete Wall 009", cat: "Concrete", v: "" },
+  { slug: "brushed_concrete_04", name: "Brushed Concrete 04", cat: "Concrete", v: "" },
+  { slug: "cracked_concrete_02", name: "Cracked Concrete 02", cat: "Concrete", v: "" },
+  { slug: "painted_plaster_wall", name: "Painted Plaster Wall", cat: "Concrete", v: "" },
+  { slug: "plastered_wall_05", name: "Plastered Wall 05", cat: "Concrete", v: "" },
+  { slug: "damaged_plaster", name: "Damaged Plaster", cat: "Concrete", v: "" },
+  { slug: "blue_metal_plate", name: "Blue Metal Plate", cat: "Metal", v: "0e02b3a2" },
+  { slug: "green_metal_rust", name: "Green Metal Rust", cat: "Metal", v: "0587b388" },
+  { slug: "metal_plate", name: "Metal Plate", cat: "Metal", v: "23925522" },
+  { slug: "rust_coarse_01", name: "Rust Coarse 01", cat: "Metal", v: "023d6939" },
+  { slug: "rusty_metal_02", name: "Rusty Metal 02", cat: "Metal", v: "d9ab12e4" },
+  { slug: "corrugated_iron_02", name: "Corrugated Iron 02", cat: "Metal", v: "c83cb6ae" },
+  { slug: "aerial_beach_02", name: "Aerial Beach 02", cat: "Ground", v: "e9df1cb6" },
+  { slug: "brown_mud_leaves_01", name: "Brown Mud Leaves 01", cat: "Ground", v: "ce084bc9" },
+  { slug: "brown_mud_dry", name: "Brown Mud Dry", cat: "Ground", v: "c3462380" },
+  { slug: "coast_sand_01", name: "Coast Sand 01", cat: "Ground", v: "411180bf" },
+  { slug: "floor_tiles_08", name: "Floor Tiles 08", cat: "Tile", v: "7689d679" },
+  { slug: "brown_floor_tiles", name: "Brown Floor Tiles", cat: "Tile", v: "7f8b0617" },
+  { slug: "patio_tiles", name: "Patio Tiles", cat: "Tile", v: "5e88c82a" },
+  { slug: "denim_fabric", name: "Denim Fabric", cat: "Fabric", v: "08bc7cb7" },
+  { slug: "fabric_pattern_07", name: "Fabric Pattern 07", cat: "Fabric", v: "8bf5bc82" },
+  { slug: "leather_white", name: "Leather White", cat: "Fabric", v: "818252e6" }
+];
+var FREE_TEX_CATS = ["All", "Brick", "Wood", "Stone", "Concrete", "Metal", "Ground", "Tile", "Fabric"];
+var freeTexFilter = "All";
+function renderFreeTexGrid(){
+  var cats = $("freeTexCats"); if(!cats) return;
+  cats.innerHTML = FREE_TEX_CATS.map(function(c){ return "<button data-cat=\"" + c + "\"" + (c===freeTexFilter ? " disabled" : "") + ">" + c + "</button>"; }).join(" ");
+  var list = FREE_TEX_PACK.filter(function(t){ return freeTexFilter==="All" || t.cat===freeTexFilter; });
+  $("freeTexGrid").innerHTML = list.map(function(t){
+    var jpg = polyJpg(t.slug);
+    return "<div class=\"free-tex-card\" data-slug=\"" + t.slug + "\" style=\"display:inline-block;width:120px;margin:4px;cursor:pointer;text-align:center\"><img loading=\"lazy\" src=\"" + polyThumb(t.slug, t.v) + "\" data-fallback=\"" + jpg + "\" onerror=\"if(!this.dataset.tried){this.dataset.tried=1;this.src=this.dataset.fallback;}else{this.style.opacity=0.3;}\" style=\"width:120px;height:120px;object-fit:cover;border-radius:8px\"><div>" + t.name + "</div><div class=\"small\">" + t.cat + " - Poly Haven</div></div>";
+  }).join("");
+  renderFreeTexSticky();
+}
+function loadFreeTexSticky(){ try{ return JSON.parse(localStorage.getItem("ff_freeTexSticky") || "null") || {}; }catch(e){ return {}; } }
+function saveFreeTexSticky(p){ try{ localStorage.setItem("ff_freeTexSticky", JSON.stringify(p)); }catch(e){} }
+function clearFreeTexSticky(){ try{ localStorage.removeItem("ff_freeTexSticky"); }catch(e){} }
+function renderFreeTexSticky(){
+  var p = loadFreeTexSticky(), el = $("freeTexSticky"), btn = $("freeTexClearBtn");
+  if(!el) return;
+  var parts = ["wall", "floor", "ceiling"].filter(function(k){ return p[k]; }).map(function(k){ return k + ": " + (p[k].label || k); });
+  if(parts.length){ el.textContent = "Sticking to new levels: " + parts.join(" - ") + ". Generating or remixing a game keeps these textures."; if(btn) btn.style.display = "inline-block"; }
+  else { el.textContent = "Pick a texture and it sticks to newly generated or remixed levels until you clear it."; if(btn) btn.style.display = "none"; }
+}
+function applyFreeTexToSpec(sp, slot, url, label){
+  sp.freeTex = sp.freeTex || {};
+  sp.freeTex[slot] = {url:url, label:label};
+  if(sp.customArt) delete sp.customArt[slot];
+  if(slot==="wall" && sp.savedArt) delete sp.savedArt.wall;
+  if(slot==="floor" && sp.savedArt) delete sp.savedArt.floor;
+  return sp;
+}
+function applyStickyFreeTex(sp){
+  var p = loadFreeTexSticky();
+  ["wall", "floor", "ceiling"].forEach(function(slot){
+    if(p[slot] && !(sp.freeTex && sp.freeTex[slot])) applyFreeTexToSpec(sp, slot, p[slot].url, p[slot].label);
+  });
+  return sp;
+}
+function setFreeTexArt(slot, img){
+  let c = imgToCanvasKeep(img);
+  if(slot==="wall"){ ART.wall = c; ART.wall2 = makeVariant(c); ART.wallFromMeta = false; }
+  if(slot==="floor"){ ART.floor = c; ART.floorFromMeta = false; }
+  if(slot==="ceiling"){ ART.ceiling = c; }
+}
+function updateFeedCardFreeTex(){
+  if(!spec) return;
+  let h = specHash(spec);
+  let f = feed.find(x=>x.hash===h || x.title===spec.title);
+  if(!f) return;
+  f.spec = JSON.parse(JSON.stringify(spec));
+  persistFeed(f);
+  renderFeed();
+}
+function restoreFreeTex(){
+  if(!spec || !spec.freeTex) return;
+  let mySpec = spec;
+  Object.entries(spec.freeTex).forEach(([slot, entry])=>{
+    if(!entry || !entry.url) return;
+    let img = new Image();
+    img.onload = ()=>{ if(spec!==mySpec) return; setFreeTexArt(slot, img); draw(); };
+    img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + slot + " did not load (needs internet). Keeping the current look."; };
+    img.src = entry.url;
+  });
+}
+function applyFreeTex(slot, url, label){
+  if(!spec){ $("freeTexStatus").textContent = "Load or generate a game first, then pick a texture."; return; }
+  let mySpec = spec;
+  applyFreeTexToSpec(spec, slot, url, label);
+  let p = loadFreeTexSticky(); p[slot] = {url:url, label:label}; saveFreeTexSticky(p);
+  renderFreeTexSticky();
+  let img = new Image();
+  img.onload = ()=>{
+    if(spec!==mySpec) return;
+    setFreeTexArt(slot, img);
+    $("specBox").value = JSON.stringify(spec, null, 1);
+    updateFeedCardFreeTex();
+    draw();
+    $("freeTexStatus").textContent = slot + " texture: " + label + ". It sticks to new levels until you clear it.";
+  };
+  img.onerror = ()=>{ $("freeTexStatus").textContent = "That texture did not load (needs internet). Keeping the current look."; };
+  img.src = url;
+}
+function removeFreeTex(slot){
+  if(!spec || !spec.freeTex || !spec.freeTex[slot]){ $("freeTexStatus").textContent = "No free texture on " + slot + " right now."; return; }
+  delete spec.freeTex[slot];
+  if(!Object.keys(spec.freeTex).length) delete spec.freeTex;
+  if(slot==="wall"){ ART.wall = makeTextureFromDesign(spec, "wall"); ART.wall2 = makeTextureFromDesign(spec, "wall-secondary"); ART.wallFromMeta = false; }
+  if(slot==="floor"){ ART.floor = makeTextureFromDesign(spec, "floor"); ART.floorFromMeta = false; }
+  if(slot==="ceiling"){ ART.ceiling = null; }
+  $("specBox").value = JSON.stringify(spec, null, 1);
+  updateFeedCardFreeTex();
+  draw();
+  $("freeTexStatus").textContent = "Free texture removed from " + slot + ". Painted look restored for that surface.";
+}
+if($("freeTexCats")) $("freeTexCats").addEventListener("click", function(ev){
+  var b = ev.target.closest ? ev.target.closest("button") : null;
+  if(!b || !b.getAttribute("data-cat")) return;
+  freeTexFilter = b.getAttribute("data-cat");
+  renderFreeTexGrid();
+});
+if($("freeTexGrid")) $("freeTexGrid").addEventListener("click", function(ev){
+  var card = ev.target.closest ? ev.target.closest(".free-tex-card") : null;
+  if(!card) return;
+  var slug = card.getAttribute("data-slug"), entry = null;
+  FREE_TEX_PACK.forEach(function(t){ if(t.slug===slug) entry = t; });
+  if(entry) applyFreeTex($("freeTexTarget").value, polyJpg(slug), entry.name + " (Poly Haven, free)");
+});
+if($("freeTexUrlBtn")) $("freeTexUrlBtn").addEventListener("click", function(){
+  var url = $("freeTexUrlInput").value.trim();
+  if(!url || url.indexOf("http")!==0){ $("freeTexStatus").textContent = "Paste a full image link starting with http."; return; }
+  applyFreeTex($("freeTexTarget").value, url, "Custom link");
+});
+if($("freeTexClearBtn")) $("freeTexClearBtn").addEventListener("click", function(){
+  clearFreeTexSticky();
+  renderFreeTexSticky();
+  $("freeTexStatus").textContent = "Sticky textures cleared. New levels will use the AI's look again. This level keeps its current textures.";
+});
+if($("freeTexRemoveBtn")) $("freeTexRemoveBtn").addEventListener("click", function(){
+  removeFreeTex($("freeTexTarget").value);
+});
+renderFreeTexGrid();
+
 if($("imgDownload")) $("imgDownload").onclick = () => {
   if(!wonderPending) return;
   let a = document.createElement("a");
@@ -2051,6 +2249,7 @@ $("generate").onclick = async ()=>{
   try{
     let s = await aiGenerate(prov);
     s.generatedBy = prov.id;
+    applyStickyFreeTex(s);
     loadSpec(s, "ai-"+prov.id, $("prompt").value);
     renderFeedAdd($("prompt").value, "ai-"+prov.id);
     $("status").innerHTML = proofStatus(prov, "AI pixel sprites + AI palette textures");
@@ -2060,6 +2259,7 @@ $("generate").onclick = async ()=>{
     try{
       let s = await aiGenerate(prov, e.message);
       s.generatedBy = prov.id;
+      applyStickyFreeTex(s);
       loadSpec(s, "ai-"+prov.id+"-retry", $("prompt").value);
       renderFeedAdd($("prompt").value, "ai-"+prov.id+"-retry");
       $("status").innerHTML = proofStatus(prov, "AI pixel sprites + AI palette textures");
