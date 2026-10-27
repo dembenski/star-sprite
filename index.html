@@ -669,12 +669,14 @@ async function buildMetaArtPack(spec, onStatus){
     ART.wall = metaCanvas(await metaImage(
       "Seamless tileable video game wall texture, flat front-on view, dense small-scale repeating pattern, uniform across the whole frame, pattern fills the entire frame edge to edge, no scene, no horizon, no sky, no floor, no characters, no objects, no large shapes, no wide bands, no text, retro 3D game wall texture. Material and colours inspired by: " +
       (world.wallDescription||"")));
+    ART.wallFromMeta = true;
   }]);
   if(mode==="full"){
     jobs.push(["floor texture", async()=>{
       ART.floor = metaCanvas(await metaImage(
         (world.floorDescription||"") +
         ", seamless tileable game texture, top-down, no text, no characters, retro 3D game floor texture"));
+      ART.floorFromMeta = true;
     }]);
     let types = [...new Map((spec.enemies||[]).map(e=>[e.typeId, e])).values()].slice(0,3);
     types.forEach(pe=>{
@@ -684,6 +686,7 @@ async function buildMetaArtPack(spec, onStatus){
           (t.imagePrompt||t.description||t.name) +
           ", one full-body front-facing game sprite, solid pure magenta background, no text, no other characters");
         ART.sprites[t.id] = [chromaKey(img), chromaKey(img)];
+        (ART.spritesFromMeta = ART.spritesFromMeta || {})[t.id] = true;
       }]);
     });
     jobs.push(["NPC sprite", async()=>{
@@ -691,6 +694,7 @@ async function buildMetaArtPack(spec, onStatus){
         "Full-body friendly game NPC sprite, one original character, " + (world.theme||"") +
         ", front view, SOLID PURE MAGENTA #FF00FF background, no text, retro PSX game sprite");
       ART.sprites["__npc"] = [chromaKey(img), chromaKey(img)];
+      (ART.spritesFromMeta = ART.spritesFromMeta || {})["__npc"] = true;
     }]);
     jobs.push(["weapon image", async()=>{
       let img=await metaImage(
@@ -745,7 +749,7 @@ function startMetaArt(prov){
       (failed.length ? ' &nbsp;<span class="err">Fallback kept for: '+failed.join(" · ")+"</span>"
                      : " — walls, floor and bad guys are now Meta images, not paint.")+
       wExtra);
-  });
+  }).then(res=>{ if(spec===mySpec && res && res.done>0) updateFeedCardArt(); });
 }
 
 function spriteFor(e){
@@ -936,6 +940,7 @@ function loadSpec(s,src,promptText){
   }
   spec = fresh; window.spec = spec;
   ART.wall=null; ART.floor=null; ART.ceiling=null; ART.sprites={}; ART_TOKEN++; window.ART=ART;
+  ART.wallFromMeta=false; ART.floorFromMeta=false; ART.spritesFromMeta={};
   if($("artBarWrap")) $("artBarWrap").style.display="none";
   buildArtPack(spec);
   $("specBox").value = JSON.stringify(spec,null,1);
@@ -946,6 +951,7 @@ function loadSpec(s,src,promptText){
   refreshEnemyTypePicker();
   if(typeof refreshImgEnemyPicker==="function")refreshImgEnemyPicker();
   buildWeaponArt(spec);
+  restoreSavedArt();
   restoreCustomArt();
   resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
@@ -1199,7 +1205,7 @@ $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");se
 // ---------- feed / share / export ----------
 function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>`<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button></div>`).join("")||"No levels yet."}
 function specHash(s){let m=s.map.map(r=>Array.isArray(r)?r.join(""):r);return btoa(unescape(encodeURIComponent(s.title+"|"+JSON.stringify(m)))).slice(0,80)}
-function renderFeedAdd(prompt,src){if(!spec)return;let h=specHash(spec);feed=feed.filter(f=>f.hash!==h&&f.title!==spec.title);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);localStorage.setItem("ff_feed",JSON.stringify(feed));renderFeed()}
+function renderFeedAdd(prompt,src){if(!spec)return;snapshotSavedArt();let h=specHash(spec);feed=feed.filter(f=>f.hash!==h&&f.title!==spec.title);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);persistFeed(feed[0]);renderFeed()}
 window.playFeed=i=>loadSpec(feed[i].spec,"feed",feed[i].prompt);window.copyFeed=i=>{let s=btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec))));navigator.clipboard.writeText(location.href.split("#")[0]+"#level="+s);alert("Share link copied")};
 window.exportFeed=i=>{let blob=new Blob(['<!DOCTYPE html><html><head><meta charset=utf-8><title>'+feed[i].title+'</title></head><body><script>location.href='+JSON.stringify(location.href.split("#")[0])+'+"#level="+'+JSON.stringify(btoa(unescape(encodeURIComponent(JSON.stringify(feed[i].spec)))))+'<\/script>Standalone export — opens the full engine with this level.</body></html>'],{type:"text/html"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="star-sprite-level.html";a.click()};
 // ---------- editor ----------
@@ -1748,6 +1754,56 @@ function saveCustomArt(target, enemyId, canvas){
   sx.drawImage(canvas,0,0,512,512);
   spec.customArt[key] = small.toDataURL("image/jpeg", .82);
   $("specBox").value = JSON.stringify(spec, null, 1);
+}
+function imgToCanvasKeep(img){ let c=document.createElement("canvas"); c.width=img.width||256; c.height=img.height||256; c.getContext("2d").drawImage(img,0,0); return c; }
+function snapshotSavedArt(){
+  if(!spec) return;
+  let out = Object.assign({}, spec.savedArt || {});
+  let down = (c,w,fmt,q)=>{ let t=document.createElement("canvas"); t.width=w; t.height=Math.max(1,Math.round(c.height*w/c.width)); t.getContext("2d").drawImage(c,0,0,t.width,t.height); return t.toDataURL(fmt,q); };
+  if(ART.wallFromMeta && ART.wall) out.wall = down(ART.wall,256,"image/jpeg",.82);
+  if(ART.floorFromMeta && ART.floor) out.floor = down(ART.floor,512,"image/jpeg",.82);
+  if(ART.weaponFromMeta && ART.weaponIdle) out.weapon = down(ART.weaponIdle,256,"image/png");
+  let sp = Object.assign({}, out.sprites || {});
+  Object.entries(ART.sprites||{}).forEach(([id,pair])=>{
+    if(ART.spritesFromMeta && ART.spritesFromMeta[id] && pair && pair[0]) sp[id] = down(pair[0],256,"image/png");
+  });
+  if(Object.keys(sp).length) out.sprites = sp; else delete out.sprites;
+  if(out.wall || out.floor || out.weapon || out.sprites) spec.savedArt = out; else delete spec.savedArt;
+}
+function restoreSavedArt(){
+  if(!spec || !spec.savedArt) return;
+  let mySpec = spec, sa = spec.savedArt, ca = spec.customArt || {};
+  let put = (url, fn)=>{ let img = new Image(); img.onload = ()=>{ if(spec !== mySpec) return; fn(img); draw(); }; img.src = url; };
+  if(sa.wall && !ca.wall) put(sa.wall, img=>{ let c = imgToCanvasKeep(img); ART.wall = c; ART.wall2 = makeVariant(c); });
+  if(sa.floor && !ca.floor) put(sa.floor, img=>{ ART.floor = imgToCanvasKeep(img); });
+  if(sa.weapon && !ca.weapon) put(sa.weapon, img=>{ let c = imgToCanvasKeep(img); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMeta = true; });
+  Object.entries(sa.sprites||{}).forEach(([id, url])=>{
+    if(ca["enemy_"+id]) return;
+    put(url, img=>{ let c = imgToCanvasKeep(img); ART.sprites[id] = [c, c]; });
+  });
+}
+function persistFeed(first){
+  let victims = [];
+  if(first) victims.push(first);
+  for(let i=feed.length-1;i>=0;i--){ if(feed[i]!==first) victims.push(feed[i]); }
+  for(let i=0;i<=victims.length;i++){
+    try{ localStorage.setItem("ff_feed", JSON.stringify(feed)); return; }
+    catch(e){
+      let v = victims[i];
+      if(!v || !v.spec || !v.spec.savedArt) return;
+      delete v.spec.savedArt;
+    }
+  }
+}
+function updateFeedCardArt(){
+  if(!spec) return;
+  snapshotSavedArt();
+  let h = specHash(spec);
+  let f = feed.find(x=>x.hash===h || x.title===spec.title);
+  if(!f) return;
+  f.spec = JSON.parse(JSON.stringify(spec));
+  persistFeed(f);
+  renderFeed();
 }
 function restoreCustomArt(){
   if(!spec || !spec.customArt) return;
