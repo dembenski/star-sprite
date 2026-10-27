@@ -55,7 +55,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button>
 <button id="shuffle" class="alt">Shuffle prompt</button><button id="demo" class="alt">Built-in demo map</button></div>
-<div id="status"></div></section>
+<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div></section>
 
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
@@ -707,7 +707,7 @@ async function buildMetaArtPack(spec, onStatus){
     try{ await job(); done++; }
     catch(e){ failed.push(name+": "+e.message); }
     if(my!==ART_TOKEN) return {done, total:jobs.length, failed:["superseded by a newer level"]};
-    if(onStatus) onStatus(done, jobs.length, failed);
+    if(onStatus) onStatus(done, jobs.length, failed, name);
     draw();
   }
   return {done, total:jobs.length, failed};
@@ -729,8 +729,14 @@ function startMetaArt(prov){
   }
   $("status").innerHTML += "<br><small>Asking Meta for real images (wall"+(mode==="full" ? ", floor, enemy sprites, NPC, weapon" : "")+")...</small>";
   let mySpec = spec;
-  buildMetaArtPack(spec,(done,total,failed)=>{
+  let barWrap=$("artBarWrap"), bar=$("artBar"), barLabel=$("artBarLabel");
+  if(barWrap){ barWrap.style.display="block"; if(bar) bar.style.width="0%"; if(barLabel) barLabel.textContent="Asking Meta for real images…"; }
+  buildMetaArtPack(spec,(done,total,failed,last)=>{
     if(spec!==mySpec) return;
+    if(barWrap){
+      if(bar) bar.style.width = total ? Math.round(done/total*100)+"%" : "0%";
+      if(barLabel) barLabel.textContent = "Meta images: "+done+"/"+total+(last ? " — latest: "+last : "")+(done===total ? " — complete" : "")+(failed.length ? " — "+failed.length+" kept painted fallback (see status)" : "");
+    }
     let wExtra = "";
     if(failed.some(f=>f.startsWith("weapon image"))) wExtra = "<br><small>Meta weapon image failed, so the engine generated the matching style weapon instead.</small>";
     else if(ART.weaponFromMeta) wExtra = "<br><small>Meta also generated this game's weapon: "+ART.weaponName+"</small>";
@@ -930,6 +936,7 @@ function loadSpec(s,src,promptText){
   }
   spec = fresh; window.spec = spec;
   ART.wall=null; ART.floor=null; ART.ceiling=null; ART.sprites={}; ART_TOKEN++; window.ART=ART;
+  if($("artBarWrap")) $("artBarWrap").style.display="none";
   buildArtPack(spec);
   $("specBox").value = JSON.stringify(spec,null,1);
   $("quest").textContent = "Quest: " + (spec.quest||"Reach the goal ★");
