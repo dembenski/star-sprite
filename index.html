@@ -1389,6 +1389,32 @@ function drawPlaneCast(B,w,h,img,top,px,py,angle){
   B.putImageData(out, 0, top ? 0 : half);
   return true;
 }
+// Star Sprite v30: wall mipmaps (see note above the wall loop).
+let wallMips = {src:null, levels:[]};
+function wallMipLevels(img){
+  if(wallMips.src === img) return wallMips.levels;
+  let w = img.width, h = img.height;
+  if(!w || !h) return [img]; // not loaded yet; retry next frame
+  let levels = [img];
+  [256,128,64,32].forEach(t=>{
+    if(t >= w) return;
+    let c = document.createElement("canvas");
+    c.width = t; c.height = Math.max(1, Math.round(h*t/w));
+    let x = c.getContext("2d"); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.drawImage(img, 0, 0, c.width, c.height);
+    levels.push(c);
+  });
+  wallMips = {src:img, levels:levels};
+  return levels;
+}
+function pickWallMip(levels, want){
+  let best = levels[0], bestScore = Infinity;
+  levels.forEach(l=>{
+    let sc = Math.abs(Math.log(l.width / Math.max(1, want)));
+    if(sc < bestScore){ bestScore = sc; best = l; }
+  });
+  return best;
+}
 function drawFPS(){
   const w=BUF.width,h=BUF.height;
   // Sky + floor as full textures, NOT top-slice bands.
@@ -1404,6 +1430,7 @@ function drawFPS(){
   if(!(_floorImg.width>256 && drawPlaneCast(B,w,h,_floorImg,false,G.px,G.py,G.angle))) for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
+  let prevTex=null;
   for(let col=0;col<w;col++){
     let a=G.angle-0.62+(col/w)*1.24;
     let dx=Math.cos(a),dy=Math.sin(a),d=0,x=px,y=py,side=0;
@@ -1417,8 +1444,13 @@ function drawFPS(){
     if(window.CUSTOM_WALL)texImg=window.CUSTOM_WALL;
     else if(ART.wall)texImg=ART.wall;
     else texImg=makeTextureFromDesign(spec, "wall");
-    let texW=texImg.width, sliceW=Math.max(1,Math.round(texW/256));
-    B.drawImage(texImg,Math.floor(tex*texW),0,sliceW,texImg.height,col,h/2-wh/2,1,wh);
+    let levels=wallMipLevels(texImg);
+    let want=wh*(texImg.width/Math.max(1,texImg.height));
+    if(prevTex!=null){let dT=Math.abs(tex-prevTex);if(dT>0&&dT<0.5)want=Math.max(want,1/dT);}
+    let lvl=pickWallMip(levels,want);
+    let texW=lvl.width, sliceW=Math.max(1,Math.round(texW/256));
+    B.drawImage(lvl,Math.floor(tex*texW),0,sliceW,lvl.height,col,h/2-wh/2,1,wh);
+    prevTex=tex;
     let fog=Math.min(.75,correct/16);
     B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
     if(side){B.fillStyle="rgba(0,0,0,.22)";B.fillRect(col,h/2-wh/2,1,wh);}
