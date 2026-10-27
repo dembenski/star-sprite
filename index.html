@@ -609,11 +609,54 @@ function metaCanvas(img){
 }
 function chromaKey(img){
   let c = metaCanvas(img), x = c.getContext("2d");
-  let d = x.getImageData(0,0,c.width,c.height);
-  for(let i=0;i<d.data.length;i+=4){
-    let r=d.data[i], g=d.data[i+1], b=d.data[i+2];
-    if(r>180 && b>180 && g<110) d.data[i+3]=0;
-    else if(r>150 && b>150 && g<140) d.data[i+3]=120;
+  let w = c.width, h = c.height;
+  let d = x.getImageData(0,0,w,h), p = d.data;
+  // v16: find the background colour from the border (most common border
+  // colour), instead of assuming pure #FF00FF. Meta's pinks vary, and a
+  // fixed threshold leaves a solid box whenever it paints deep pink.
+  let votes = new Map(), total = 0;
+  function vote(px,py){
+    let i = (py*w+px)*4;
+    let key = ((p[i]>>5)<<10)|((p[i+1]>>5)<<5)|(p[i+2]>>5);
+    let v = votes.get(key);
+    if(!v){ votes.set(key, {n:0, r:0, g:0, b:0}); v = votes.get(key); }
+    v.n++; v.r+=p[i]; v.g+=p[i+1]; v.b+=p[i+2]; total++;
+  }
+  for(let sx=0; sx<w; sx+=16){ vote(sx,0); vote(sx,h-1); }
+  for(let sy=0; sy<h; sy+=16){ vote(0,sy); vote(w-1,sy); }
+  let bg = null;
+  votes.forEach(v=>{ if(!bg || v.n>bg.n) bg = v; });
+  if(bg && bg.n/total >= 0.5){
+    let br = bg.r/bg.n, bgr = bg.g/bg.n, bb = bg.b/bg.n;
+    function dist(i){
+      let dr=p[i]-br, dg=p[i+1]-bgr, db=p[i+2]-bb;
+      return Math.sqrt(dr*dr+dg*dg+db*db);
+    }
+    let alpha = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){
+      let i=(y*w+xx)*4;
+      alpha[y*w+xx] = dist(i) < 100 ? 0 : 1;
+    }
+    // Defringe: clear near-background pixels touching transparency. The
+    // neighbour check reads a snapshot, or the clearing cascades inward
+    // and eats whole subjects whose colour sits under the fringe limit.
+    let snap = alpha.slice();
+    for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){
+      let idx=y*w+xx;
+      if(alpha[idx]){
+        let near = (xx>0 && !snap[idx-1]) || (xx<w-1 && !snap[idx+1]) ||
+                   (y>0 && !snap[idx-w]) || (y<h-1 && !snap[idx+w]);
+        if(near && dist(idx*4) < 150) alpha[idx] = 0;
+      }
+    }
+    for(let i=0;i<alpha.length;i++) if(!alpha[i]) p[i*4+3]=0;
+  } else {
+    // No solid background found: legacy fixed magenta thresholds.
+    for(let i=0;i<p.length;i+=4){
+      let r=p[i], g=p[i+1], b=p[i+2];
+      if(r>180 && b>180 && g<110) p[i+3]=0;
+      else if(r>150 && b>150 && g<140) p[i+3]=120;
+    }
   }
   x.putImageData(d,0,0); return c;
 }
