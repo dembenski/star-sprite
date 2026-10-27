@@ -1003,6 +1003,46 @@ function draw(){
 }
 function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return worldColors().wall}
+function texPixels(img){
+  if(img._px) return img._px;
+  let c=document.createElement("canvas"); c.width=img.width; c.height=img.height;
+  let x=c.getContext("2d"); x.drawImage(img,0,0);
+  let px={w:img.width,h:img.height,d:x.getImageData(0,0,c.width,c.height).data};
+  try{ img._px = px; }catch(e){}
+  return px;
+}
+// v17: perspective floor/ceiling casting for image textures. The distance
+// from the horizon row gives each row's distance to the plane, and the
+// left/right ray directions give each column's world position, so the
+// texture is sampled where it actually lies on the ground (or ceiling)
+// instead of being squashed into repeated tiles.
+function drawPlaneCast(B,w,h,img,top,px,py,angle){
+  let tex = texPixels(img);
+  let half = h>>1;
+  let out = B.createImageData(w,half);
+  let od = out.data;
+  let leftA = angle-0.62, rightA = angle+0.62;
+  let ldx = Math.cos(leftA), ldy = Math.sin(leftA);
+  let rdx = Math.cos(rightA), rdy = Math.sin(rightA);
+  for(let row=0; row<half; row++){
+    let p = top ? (half-row) : (row+1);
+    let rowDist = (0.5*h)/p;
+    let stepX = rowDist*(rdx-ldx)/w, stepY = rowDist*(rdy-ldy)/w;
+    let fx = px + rowDist*ldx, fy = py + rowDist*ldy;
+    let fog = Math.min(.75, rowDist/16), inv = 1-fog;
+    for(let col=0; col<w; col++){
+      let tx = Math.floor((((fx%1)+1)%1)*tex.w);
+      let ty = Math.floor((((fy%1)+1)%1)*tex.h);
+      let si = (ty*tex.w+tx)*4, di = (row*w+col)*4;
+      od[di]   = tex.d[si]*inv + 42*fog;
+      od[di+1] = tex.d[si+1]*inv + 16*fog;
+      od[di+2] = tex.d[si+2]*inv + 48*fog;
+      od[di+3] = 255;
+      fx += stepX; fy += stepY;
+    }
+  }
+  B.putImageData(out, 0, top ? 0 : half);
+}
 function drawFPS(){
   const w=BUF.width,h=BUF.height;
   // Sky + floor as full textures, NOT top-slice bands.
@@ -1011,9 +1051,13 @@ function drawFPS(){
   // across the whole sky/floor. Full-texture draws fix that.
   let _wc = worldColors();
   let _floorImg = ART.floor || makeTextureFromDesign(spec, "floor");
-  if(ART.ceiling){for(let tx=0;tx<w;tx+=64){B.drawImage(ART.ceiling,tx,0,64,h/2);}}
+  if(ART.ceiling){
+    if(ART.ceiling.width>256) drawPlaneCast(B,w,h,ART.ceiling,true,G.px,G.py,G.angle);
+    else for(let tx=0;tx<w;tx+=64){B.drawImage(ART.ceiling,tx,0,64,h/2);}
+  }
   else {B.fillStyle=_wc.skyColor; B.fillRect(0,0,w,h/2);}
-  for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
+  if(_floorImg.width>256) drawPlaneCast(B,w,h,_floorImg,false,G.px,G.py,G.angle);
+  else for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
   const snap=v=>Math.round(v*24)/24;
   const px=snap(G.px),py=snap(G.py);
   for(let col=0;col<w;col++){
