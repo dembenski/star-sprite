@@ -600,9 +600,16 @@ function imgToCanvas(img,s){
   s = s||256; let c=document.createElement("canvas"); c.width=c.height=s;
   c.getContext("2d").drawImage(img,0,0,s,s); return c;
 }
+// v15: keep a Meta image at the size Meta actually sent it (full resolution),
+// instead of shrinking it to 256. Falls back to .width for canvas sources.
+function metaCanvas(img){
+  let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  let c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d").drawImage(img,0,0,w,h); return c;
+}
 function chromaKey(img){
-  let c = imgToCanvas(img,256), x = c.getContext("2d");
-  let d = x.getImageData(0,0,256,256);
+  let c = metaCanvas(img), x = c.getContext("2d");
+  let d = x.getImageData(0,0,c.width,c.height);
   for(let i=0;i<d.data.length;i+=4){
     let r=d.data[i], g=d.data[i+1], b=d.data[i+2];
     if(r>180 && b>180 && g<110) d.data[i+3]=0;
@@ -616,15 +623,15 @@ async function buildMetaArtPack(spec, onStatus){
   let world = spec.world || {};
   let jobs = [];
   jobs.push(["wall texture", async()=>{
-    ART.wall = imgToCanvas(await metaImage(
+    ART.wall = metaCanvas(await metaImage(
       (world.wallDescription||"") +
-      ", seamless tileable game texture, front-on, no text, no characters, retro 3D game wall texture"),256);
+      ", seamless tileable game texture, front-on, no text, no characters, retro 3D game wall texture"));
   }]);
   if(mode==="full"){
     jobs.push(["floor texture", async()=>{
-      ART.floor = imgToCanvas(await metaImage(
+      ART.floor = metaCanvas(await metaImage(
         (world.floorDescription||"") +
-        ", seamless tileable game texture, top-down, no text, no characters, retro 3D game floor texture"),256);
+        ", seamless tileable game texture, top-down, no text, no characters, retro 3D game floor texture"));
     }]);
     let types = [...new Map((spec.enemies||[]).map(e=>[e.typeId, e])).values()].slice(0,3);
     types.forEach(pe=>{
