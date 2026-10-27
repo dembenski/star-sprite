@@ -380,8 +380,9 @@ function validateManifestAI(s){
     if(!t.pixelPalette || typeof t.pixelPalette!=="object") return "enemyType "+t.name+" has no pixelPalette";
   }
   if(!Array.isArray(s.map) || s.map.length<10 || s.map.length>14) return "map must be 10-14 rows";
-  if(!s.map.every(r=>String(r).length>=14 && String(r).length<=20)) return "map rows must be 14-20 columns";
-  if(!s.map.every(r=>String(r).length===String(s.map[0]).length)) return "map rows are not all the same length";
+  let rowLen = r=>Array.isArray(r) ? r.length : String(r).length;
+  if(!s.map.every(r=>rowLen(r)>=14 && rowLen(r)<=20)) return "map rows must be 14-20 columns";
+  if(!s.map.every(r=>rowLen(r)===rowLen(s.map[0]))) return "map rows are not all the same length";
   if(!Array.isArray(s.enemies) || s.enemies.length===0) return "no enemies placed";
   for(let e of s.enemies) if(!ids.has(e.typeId)) return "an enemy placement refers to an unknown typeId: "+e.typeId;
   if(s.boss && !s.enemies.some(e=>e.boss) && !s.enemyTypes.some(t=>t.boss)) return "boss was requested but no boss type or boss placement is in the manifest";
@@ -473,6 +474,8 @@ do NOT default to pink/dessert unless the remix itself calls for it.
 Original names only, no trademark names. This must be a NEW game,
 not the original with a new title.`;
 
+  let ctxSpec = JSON.parse(JSON.stringify(spec));
+  if(Array.isArray(ctxSpec.map)) ctxSpec.map = ctxSpec.map.map(r=>Array.isArray(r)?r.join(""):r);
   let txt = await llmProvider(WONDER, [
     {role:"system", content:sys},
     {role:"user", content:
@@ -483,7 +486,7 @@ not the original with a new title.`;
       " Boss mode: " + $("boss").checked +
       (extraError ? "\nIMPORTANT FIX FROM LAST ATTEMPT: " + extraError : "") +
       "\nVariation seed: " + Date.now() +
-      "\n\nTHE CURRENT GAME TO REMIX (JSON):\n" + JSON.stringify(spec)}
+      "\n\nTHE CURRENT GAME TO REMIX (JSON):\n" + JSON.stringify(ctxSpec)}
   ]);
 
   let s = parseJSON(txt);   // JSON error is called a JSON error, never a network error
