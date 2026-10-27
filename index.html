@@ -1407,7 +1407,7 @@ let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingCli
 let tab=localStorage.getItem("ff_tab")||"make";function setTab(t){tab=t;localStorage.setItem("ff_tab",t);$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
 $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");setTab(tab);
 // ---------- feed / share / export ----------
-function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>`<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button> <button onclick="deleteFeed(${i})">Delete</button></div>`).join("")||"No levels yet."}
+function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>{let builtin=f.src==="demo"||(f.src||"").indexOf("builtin")===0;return `<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button>${builtin?" <small>Built-in</small>":' <button onclick="deleteFeed('+i+')">Delete</button>'}</div>`}).join("")||"No levels yet."}
 function specHash(s){let m=s.map.map(r=>Array.isArray(r)?r.join(""):r);return btoa(unescape(encodeURIComponent(s.title+"|"+JSON.stringify(m)))).slice(0,80)}
 function renderFeedAdd(prompt,src){if(!spec)return;snapshotSavedArt();let h=specHash(spec);feed=feed.filter(f=>f.hash!==h&&f.title!==spec.title);feed.unshift({hash:h,title:spec.title,prompt:prompt||spec.title,spec:JSON.parse(JSON.stringify(spec)),when:new Date().toLocaleString(),src});feed=feed.slice(0,20);persistFeed(feed[0]);renderFeed()}
 window.deleteFeed=i=>{ if(!feed[i]) return; if(!confirm("Delete '"+feed[i].title+"' from your feed? This cannot be undone.")) return; feed.splice(i,1); persistFeed(); renderFeed(); };
@@ -1959,6 +1959,7 @@ function saveCustomArt(target, enemyId, canvas){
   sx.drawImage(canvas,0,0,512,512);
   spec.customArt[key] = small.toDataURL("image/jpeg", .82);
   $("specBox").value = JSON.stringify(spec, null, 1);
+  updateFeedCardArt();
 }
 function imgToCanvasKeep(img){ let c=document.createElement("canvas"); c.width=img.width||256; c.height=img.height||256; c.getContext("2d").drawImage(img,0,0); return c; }
 function snapshotSavedArt(){
