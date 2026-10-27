@@ -203,7 +203,12 @@ Groq games never call Meta.</small></p>
     <label><input type="checkbox" id="remixKeepDiff"> Keep same difficulty</label>
   </div>
   <div class="row">
-    <label><input type="checkbox" id="remixArt"> Also generate fresh Wonder images (walls/floor/enemies/weapon) if Art Mode is Mixed/Full — costs extra</label>
+    <label>Fresh art for the remix:
+    <select id="remixArtMode">
+      <option value="none" selected>No fresh art (painted look)</option>
+      <option value="standard">Standard Meta images (needs Art Mode Mixed/Full)</option>
+      <option value="highres">High-res 1024 Studio-style textures (about $0.08, ignores Art Mode)</option>
+    </select></label>
   </div>
   <div class="row">
     <input id="remixNote" size="52" placeholder="Optional: tell Wonder what to change — 'make it underwater', 'more bosses', 'spookier'">
@@ -492,6 +497,66 @@ not the original with a new title.`;
   return repair(s);
 }
 
+function remixArtDispatch(){
+  let m = $("remixArtMode").value;
+  if(m === "standard" && $("artMode").value !== "painted"){
+    $("remixStatus").innerHTML += "<br><small>Now asking Meta for fresh Wonder images for the remix…</small>";
+    startMetaArt(WONDER);
+  } else if(m === "highres"){
+    $("remixStatus").innerHTML += "<br><small>Now asking Meta for high-res 1024 textures for the remix…</small>";
+    remixHighResArt();
+  }
+}
+
+async function remixHighResArt(){
+  let mySpec = spec, my = ++ART_TOKEN;
+  let w = spec.world || {}, wp = spec.weapon || {};
+  let tech = "high resolution, detailed, sharp, no text, no watermark, retro-modern 3D game asset";
+  // Mirrors wonderPromptFor's blank-prompt branches, without reading
+  // the Studio custom-prompt box.
+  let promptFor = (target, enemyId)=>{
+    switch(target){
+      case "wall": return (w.wallDescription||"original game wall") + ", seamless tileable video game WALL texture, front-on flat texture, no characters, no perspective, " + tech;
+      case "floor": return (w.floorDescription||"original game floor") + ", seamless tileable video game FLOOR texture, top-down flat texture, no characters, " + tech;
+      case "ceiling": return (w.skyDescription||"original game ceiling and sky") + ", seamless tileable video game CEILING texture, viewed from directly below, flat texture, no characters, " + tech;
+      case "weapon": return (wp.description||wp.name||"original game weapon") + ", first-person video game weapon viewmodel, one weapon only, no hands, no character, centred low in frame, SOLID PURE MAGENTA #FF00FF background, " + tech;
+      case "enemy": { let t = (spec.enemyTypes||[]).find(e=>e.id===enemyId); return ((t && (t.imagePrompt || t.description || t.name)) || "original game enemy") + ", one full-body front-facing video game enemy sprite, whole character visible, no other characters, SOLID PURE MAGENTA #FF00FF background, " + tech; }
+      case "npc": return "Full-body friendly game NPC sprite, one original character, " + (w.theme||"") + ", front view, SOLID PURE MAGENTA #FF00FF background, no text, retro PSX game sprite, " + tech;
+    }
+    return "original game asset, " + tech;
+  };
+  let toJpeg = (src)=>{ let c = metaCanvas(src); return c.toDataURL("image/jpeg", .82); };
+  let jobs = [];
+  jobs.push(["wall texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("wall"))); ART.wall = c; ART.wall2 = makeVariant(c); (spec.customArt = spec.customArt || {}).wall = c.toDataURL("image/jpeg", .82); }]);
+  jobs.push(["floor texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("floor"))); ART.floor = c; (spec.customArt = spec.customArt || {}).floor = c.toDataURL("image/jpeg", .82); }]);
+  jobs.push(["ceiling texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("ceiling"))); ART.ceiling = c; (spec.customArt = spec.customArt || {}).ceiling = c.toDataURL("image/jpeg", .82); }]);
+  let types = [...new Map((spec.enemyTypes||[]).map(e=>[e.id, e])).values()].slice(0,3);
+  types.forEach(t=>{
+    jobs.push(["sprite: "+t.name, async()=>{ let img = await metaImage(promptFor("enemy", t.id)); let c = chromaKey(img); ART.sprites[t.id] = [c, c]; (spec.customArt = spec.customArt || {})["enemy_"+t.id] = toJpeg(img); }]);
+  });
+  jobs.push(["NPC sprite", async()=>{ let img = await metaImage(promptFor("npc")); let c = chromaKey(img); ART.sprites["__npc"] = [c, c]; spec.savedArt = spec.savedArt || {}; spec.savedArt.sprites = Object.assign({}, spec.savedArt.sprites, {__npc: c.toDataURL("image/png")}); }]);
+  jobs.push(["weapon image", async()=>{ let img = await metaImage(promptFor("weapon")); let c = chromaKey(img); ART.weaponIdle = c; ART.weaponFire = c; (spec.customArt = spec.customArt || {}).weapon = toJpeg(img); }]);
+  let barWrap=$("artBarWrap"), bar=$("artBar"), barLabel=$("artBarLabel");
+  if(barWrap){ barWrap.style.display="block"; if(bar) bar.style.width="0%"; if(barLabel) barLabel.textContent="Asking Meta for high-res 1024 textures…"; }
+  let done=0, failed=[];
+  for(let [name, job] of jobs){
+    try{ await job(); done++; }
+    catch(e){ failed.push(name+": "+e.message); }
+    if(my!==ART_TOKEN) return;
+    if(spec!==mySpec) return;
+    if(barWrap){
+      if(bar) bar.style.width = Math.round(done/jobs.length*100)+"%";
+      if(barLabel) barLabel.textContent = "High-res textures: "+done+"/"+jobs.length+" — latest: "+name+(done===jobs.length ? " — complete" : "")+(failed.length ? " — "+failed.length+" kept painted fallback" : "");
+    }
+    draw();
+  }
+  if(spec===mySpec){
+    if($("specBox")) $("specBox").value = JSON.stringify(spec,null,1);
+    $("remixStatus").innerHTML += "<br><small>High-res textures loaded: "+done+"/"+jobs.length+(failed.length ? ' <span class="err">Kept painted for: '+failed.join(" · ")+"</span>" : " — walls, floor, ceiling, sprites and weapon are now 1024 Meta textures.")+"</small>";
+    updateFeedCardArt();
+  }
+}
+
 $("remixWonder").onclick = async () => {
   if(!spec){ $("remixStatus").textContent = "Load or generate a game first, then remix it."; return; }
   if(!localStorage.getItem("ff_key_meta")){
@@ -519,13 +584,10 @@ $("remixWonder").onclick = async () => {
       '<br>Enemies Wonder invented: ' + (spec.enemyTypes||[]).map(t=>t.name).join(", ") +
       '<br>Weapon Wonder invented: ' + (spec.weapon ? spec.weapon.name : "—") + '</small>';
 
-    // Optional: fresh Wonder images for the remixed game (routed
-    // through startMetaArt so the v20 load bar shows and the v21
-    // feed card gains the fresh art when the run finishes).
-    if($("remixArt").checked && $("artMode").value !== "painted"){
-      $("remixStatus").innerHTML += "<br><small>Now asking Meta for fresh Wonder images for the remix…</small>";
-      startMetaArt(WONDER);
-    }
+    // Optional: fresh art for the remixed game (standard via the
+    // v20 load bar, high-res 1024 via its own bar run; both refresh
+    // the feed card when they finish).
+    remixArtDispatch();
   } catch(e) {
     $("remixStatus").innerHTML =
       '<span class="err">Muse Wonder remix failed: ' + e.message + ' Retrying ONCE with Muse Wonder only…</span>';
@@ -535,6 +597,7 @@ $("remixWonder").onclick = async () => {
       renderFeedAdd("Wonder Remix of " + beforeTitle, "wonder-remix-retry");
       $("remixStatus").innerHTML =
         '<span class="ok">Remixed by Muse Wonder on retry &amp; now showing: <b>' + spec.title + '</b></span>';
+      remixArtDispatch();
     } catch(e2) {
       // Total failure: restore the exact game you had. No demo. No Groq. No invented game.
       loadSpec(JSON.parse(beforeJSON), "remix-aborted", beforeTitle);
