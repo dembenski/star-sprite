@@ -55,7 +55,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button>
 <button id="shuffle" class="alt">Shuffle prompt</button><button id="demo" class="alt">Built-in demo map</button></div>
-<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div></section>
+<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div><div id="artPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #ffd84d;border-radius:12px;padding:12px 16px;max-width:420px;text-align:center"><b>High-res textures take a few minutes</b><br>Your game plays right away with painted textures. The high-res Meta textures load in one by one after that — walls and floor first, weapon last. Keep playing while they arrive.<br><button onclick="closeArtPopup()" style="margin-top:8px">Close</button></div></section>
 
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
@@ -512,6 +512,7 @@ function remixArtDispatch(){
 }
 
 async function remixHighResArt(){
+  showArtPopup();
   let mySpec = spec, my = ++ART_TOKEN;
   let w = spec.world || {}, wp = spec.weapon || {};
   let tech = "high resolution, detailed, sharp, no text, no watermark, retro-modern 3D game asset";
@@ -926,6 +927,8 @@ function proofStatus(prov, artLine){
   let enemies = (spec.enemyTypes||[]).map(t=>t.name).join(", ");
   return '<span class="ok">Generated entirely by '+prov.label+' ('+prov.model+'). '+other+' was not used.</span><br><small>Now showing: <b>'+spec.title+'</b><br>World: '+(spec.world?spec.world.theme:"")+'<br>Enemies invented by '+who+': '+enemies+'<br>Weapon invented by '+who+': '+(spec.weapon?spec.weapon.name:"")+'<br>Art: '+artLine+'</small>';
 }
+function showArtPopup(){ if(localStorage.getItem("ff_artPopupSeen")) return; let p=$("artPopup"); if(p) p.style.display="block"; }
+function closeArtPopup(){ let p=$("artPopup"); if(p) p.style.display="none"; try{localStorage.setItem("ff_artPopupSeen","1")}catch(e){} }
 function startMetaArt(prov){
   // v12 provider rule: Groq games never call Meta, Meta games never call Groq.
   if(prov.id==="groq") return;
@@ -935,6 +938,7 @@ function startMetaArt(prov){
     $("status").innerHTML += '<br><span class="err">No Meta key saved, so no Meta images. AI pixel sprites + AI palette textures used instead — the game itself is fine.</span>';
     return;
   }
+  showArtPopup();
   $("status").innerHTML += "<br><small>Asking Meta for real images (wall"+(mode==="full" ? ", floor, enemy sprites, NPC, weapon" : "")+")...</small>";
   let mySpec = spec;
   let barWrap=$("artBarWrap"), bar=$("artBar"), barLabel=$("artBarLabel");
