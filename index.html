@@ -315,7 +315,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <h3>Spec</h3><textarea id="specBox" rows="22" cols="38"></textarea>
 <h3>Talking NPC</h3><div class="chat" id="npcLog">Walk near an NPC in game, then chat here. NPCs never go silent.</div>
 <div class="row"><input id="npcInput" placeholder="Say hello..."><button id="npcSend">Talk</button></div>
-<details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity. · Wonder Studio previews before Apply. · First-run tour shows once, re-opens from Tour button. · Prompt starter chips fill the prompt box. · Genre picker (36 genres) shapes Generate.</small></details>
+<details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity. · Wonder Studio previews before Apply. · First-run tour shows once, re-opens from Tour button. · Prompt starter chips fill the prompt box. · Genre picker (36 genres) shapes Generate. · True 3D walls use the game wall texture (flat fallback if tainted).</small></details>
 </div></div></section>
 
 <div class="card"><div id="hud">Load a demo or generate a level.</div>
@@ -1587,7 +1587,7 @@ function drawTop(){let _wc=worldColors();ctx.fillStyle=_wc.floorColor;ctx.fillRe
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D"){if(ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():_wc.secondaryWallColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}}}));}
 function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}}));}
 // True 3D — separate WebGL canvas, raw WebGL, no libraries
-let GLC=$("gameGL"), gl=null, prog=null, glReady=false, glFailed="", uM, uC, aP, cubeBuf;
+let GLC=$("gameGL"), gl=null, prog=null, glReady=false, glFailed="", uM, uC, aP, cubeBuf, uT, uUse, aT, wallGLTex=null, wallGLTexFor=null;
 function initGL(){
   if(glReady) return true;
   if(!gl){
@@ -1597,8 +1597,8 @@ function initGL(){
     if(!gl){ glFailed = "Browser returned no WebGL context."; return false; }
   }
   if(!prog){
-    let vs="attribute vec3 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,1.);}";
-    let fs="precision mediump float;uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}";
+    let vs="attribute vec3 p;attribute vec2 t;uniform mat4 m;varying vec2 vUv;void main(){vUv=t;gl_Position=m*vec4(p,1.);}";
+    let fs="precision mediump float;uniform vec3 c;uniform sampler2D tex;uniform float useTex;varying vec2 vUv;void main(){if(useTex>0.5){gl_FragColor=texture2D(tex,vUv);}else{gl_FragColor=vec4(c,1.);}}";
     function sh(t,src){let o=gl.createShader(t);gl.shaderSource(o,src);gl.compileShader(o);
       if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o));
       return o;}
@@ -1607,8 +1607,8 @@ function initGL(){
       gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(prog);
       if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     }catch(e){ glFailed = "WebGL shader failed: " + e.message; return false; }
-    uM=gl.getUniformLocation(prog,"m"); uC=gl.getUniformLocation(prog,"c");
-    aP=gl.getAttribLocation(prog,"p");
+    uM=gl.getUniformLocation(prog,"m"); uC=gl.getUniformLocation(prog,"c"); uT=gl.getUniformLocation(prog,"tex"); uUse=gl.getUniformLocation(prog,"useTex");
+    aP=gl.getAttribLocation(prog,"p"); aT=gl.getAttribLocation(prog,"t");
     let v=[];
     let F=[[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,-.5]],
            [[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],
@@ -1616,7 +1616,7 @@ function initGL(){
            [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],
            [[-.5,-.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[.5,-.5,-.5]],
            [[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]]];
-    F.forEach(f=>{v.push(...f[0],...f[1],...f[2],...f[0],...f[2],...f[3]);});
+    let UV=[[[0,0],[1,0],[1,1],[0,1]],[[0,0],[1,0],[1,1],[0,1]],[[0,0],[0,1],[1,1],[1,0]],[[0,0],[0,1],[1,1],[1,0]],[[0,0],[0,1],[1,1],[1,0]],[[0,0],[0,1],[1,1],[1,0]]]; F.forEach((f,fi)=>{[0,1,2,0,2,3].forEach(i=>{v.push(...f[i],...UV[fi][i]);});});
     cubeBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
     gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
   }
@@ -1627,7 +1627,7 @@ function initGL(){
 // rebuilds it; on restore, clear the failure and redraw. The gl
 // object itself is kept: after a restore it becomes usable again.
 if(GLC){
-  GLC.addEventListener("webglcontextlost", e => { e.preventDefault(); glReady = false; prog = null; });
+  GLC.addEventListener("webglcontextlost", e => { e.preventDefault(); glReady = false; prog = null; wallGLTex = null; wallGLTexFor = null; });
   GLC.addEventListener("webglcontextrestored", () => { glFailed = ""; draw(); });
 }
 // Test WebGL button (next to the engine dropdown): proves on-screen
@@ -1654,9 +1654,27 @@ function norm(a){let l=Math.hypot(...a)||1;return a.map(v=>v/l);}
 function mul(a,b){let o=new Array(16).fill(0);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];return o;}
 function model(x,y,z,sx,sy,sz){return[sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1];}
 function hexC(hex){let n=parseInt(hex.slice(1),16);return[((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];}
-function drawCube(mvp,col){
+function drawCube(mvp,col,tex){
   gl.uniformMatrix4fv(uM,false,new Float32Array(mvp));
+  if(tex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tex); gl.uniform1i(uT,0); gl.uniform1f(uUse,1); }
+  else gl.uniform1f(uUse,0);
   gl.uniform3fv(uC,col); gl.drawArrays(gl.TRIANGLES,0,36);
+}
+function wallGLTexture(){
+  let src = (typeof ART!=="undefined" && ART) ? ART.wall : null;
+  if(!src || !src.width) return null;
+  if(wallGLTex && wallGLTexFor===src) return wallGLTex;
+  try{
+    let t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);
+    wallGLTex=t; wallGLTexFor=src; return t;
+  }catch(e){ return null; }
 }
 function draw3D(){
   if(!initGL()) return false;
@@ -1666,13 +1684,13 @@ function draw3D(){
   gl.clearColor(sky[0],sky[1],sky[2],1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.useProgram(prog); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
-  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,3,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,3,gl.FLOAT,false,20,0); gl.enableVertexAttribArray(aT); gl.vertexAttribPointer(aT,2,gl.FLOAT,false,20,12);
   let eye=[G.px,0.55,G.py];
   let view=lookAt(eye,[G.px+Math.cos(G.angle),0.55,G.py+Math.sin(G.angle)],[0,1,0]);
   let vp=mul(persp(1.15,960/540,0.05,60),view);
   drawCube(mul(vp,model(spec.map[0].length/2,-0.55,spec.map.length/2,spec.map[0].length,0.1,spec.map.length)),hexC(st.floorColor));
   spec.map.forEach((row,y)=>[...row].forEach((c,x)=>{
-    if(c==="#")drawCube(mul(vp,model(x+.5,0,y+.5,1,1.1,1)),hexC(st.wallColor));
+    if(c==="#")drawCube(mul(vp,model(x+.5,0,y+.5,1,1.1,1)),hexC(st.wallColor),wallGLTexture());
     if(c==="D")drawCube(mul(vp,model(x+.5,0,y+.5,1,1.1,1)),hexC(st.accentColor));
     if(c==="G")drawCube(mul(vp,model(x+.5,0.15,y+.5,0.6,0.6,0.6)),[1,0.85,0.2]);
   }));
