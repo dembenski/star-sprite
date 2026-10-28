@@ -1260,6 +1260,7 @@ function loadSpec(s,src,promptText){
   restoreSavedArt();
   restoreCustomArt();
   restoreFreeTex();
+  $("hud").title = "Wall texture: " + (ART.wall ? (ART.wall.width + "x" + ART.wall.height) : "none");
   resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
   $("hud").textContent = "NEW LEVEL LOADED: "+spec.title+" · "+spec.engine+" · "+hudText();
@@ -1429,17 +1430,40 @@ function drawFPS(){
   }
   else {B.fillStyle=_wc.skyColor; B.fillRect(0,0,w,h/2);}
   if(!(_floorImg.width>256 && drawPlaneCast(B,w,h,_floorImg,false,G.px,G.py,G.angle))) for(let tx=0;tx<w;tx+=64){B.drawImage(_floorImg,tx,h/2,64,h/2);}
-  const snap=v=>Math.round(v*24)/24;
-  const px=snap(G.px),py=snap(G.py);
-  let prevTex=null;
+  // DDA wall casting (v32): exact hit position per column. The old
+  // 0.03-step marcher + snapped player pos quantized the texture
+  // coordinate, so glancing walls smeared and swam. Ray angle sweep
+  // is unchanged (-0.62..+0.62), so sprite projection still lines up.
+  let cellAt=(mx,my)=>{
+    if(my<0||my>=spec.map.length) return "#";
+    let row=spec.map[my];
+    if(mx<0||mx>=row.length) return "#";
+    return row[mx];
+  };
+  let prevWallX=null;
   for(let col=0;col<w;col++){
     let a=G.angle-0.62+(col/w)*1.24;
-    let dx=Math.cos(a),dy=Math.sin(a),d=0,x=px,y=py,side=0;
-    while(d<18){x+=dx*.03;y+=dy*.03;d+=.03;if(wall(x,y)){side=Math.abs(x-Math.round(x))>Math.abs(y-Math.round(y))?1:0;break}}
-    let correct=d*Math.cos(a-G.angle);
-    if(col < ZBUF.length) ZBUF[col] = correct;
-    let wh=Math.min(h*1.4,h/(correct+.001));
-    let tex=((side?y:x)%1+1)%1;
+    let rayX=Math.cos(a), rayY=Math.sin(a);
+    let mapX=Math.floor(G.px), mapY=Math.floor(G.py);
+    let dDX=Math.abs(1/(rayX||1e-9)), dDY=Math.abs(1/(rayY||1e-9));
+    let stepX, stepY, sideX, sideY;
+    if(rayX<0){ stepX=-1; sideX=(G.px-mapX)*dDX; } else { stepX=1; sideX=(mapX+1-G.px)*dDX; }
+    if(rayY<0){ stepY=-1; sideY=(G.py-mapY)*dDY; } else { stepY=1; sideY=(mapY+1-G.py)*dDY; }
+    let side=0, hit=".", guard=0;
+    while(guard++<64){
+      if(sideX<sideY){ sideX+=dDX; mapX+=stepX; side=0; }
+      else { sideY+=dDY; mapY+=stepY; side=1; }
+      hit=cellAt(mapX,mapY);
+      if(hit==="#"||hit==="D") break;
+    }
+    let t = side===0 ? (sideX-dDX) : (sideY-dDY);
+    let perp=t*Math.cos(a-G.angle);
+    if(!(perp>0.05)) perp=0.05;
+    if(col<ZBUF.length) ZBUF[col]=perp;
+    let wh=Math.min(h*1.4,h/(perp+.001));
+    // Exact position along the hit wall face, 0..1 across ONE block.
+    let wallX = side===0 ? G.py + t*rayY : G.px + t*rayX;
+    wallX -= Math.floor(wallX);
     // Walls come from the AI world (ART.wall), never from an engine style table.
     let texImg;
     if(window.CUSTOM_WALL)texImg=window.CUSTOM_WALL;
@@ -1447,12 +1471,16 @@ function drawFPS(){
     else texImg=makeTextureFromDesign(spec, "wall");
     let levels=wallMipLevels(texImg);
     let want=wh*(texImg.width/Math.max(1,texImg.height));
-    if(prevTex!=null){let dT=Math.abs(tex-prevTex);if(dT>0&&dT<0.5)want=Math.max(want,1/dT);}
+    if(prevWallX!=null){let dT=Math.abs(wallX-prevWallX);if(dT>0&&dT<0.5)want=Math.max(want,1/dT);}
     let lvl=pickWallMip(levels,want);
     let texW=lvl.width, sliceW=Math.max(1,Math.round(texW/256));
-    B.drawImage(lvl,Math.floor(tex*texW),0,sliceW,lvl.height,col,h/2-wh/2,1,wh);
-    prevTex=tex;
-    let fog=Math.min(.75,correct/16);
+    let texX=Math.floor(wallX*texW);
+    if(side===0&&rayX>0) texX=texW-texX-1;
+    if(side===1&&rayY<0) texX=texW-texX-1;
+    texX=Math.max(0,Math.min(texW-1,texX));
+    B.drawImage(lvl,texX,0,sliceW,lvl.height,col,h/2-wh/2,1,wh);
+    prevWallX=wallX;
+    let fog=Math.min(.75,perp/16);
     B.fillStyle=`rgba(42,16,48,${fog})`;B.fillRect(col,h/2-wh/2,1,wh);
     if(side){B.fillStyle="rgba(0,0,0,.22)";B.fillRect(col,h/2-wh/2,1,wh);}
   }
@@ -2597,7 +2625,8 @@ function startOffline(saveToFeed){
   if(saveToFeed) renderFeedAdd("Offline Maker: " + s.title, "offline-maker");
   $("offStatus").innerHTML = '<span class="ok">Offline game built &amp; playing: <b>' + spec.title + '</b></span>' +
     '<br><small>Level 1 of ' + offlineCampaign.total + ' · ' + spec.enemies.length + ' enemies · ' +
-    spec.enemyTypes.length + ' species · Gun: ' + spec.weapon.name + ' · Engine: ' + spec.engine + '</small>';
+    spec.enemyTypes.length + ' species · Gun: ' + spec.weapon.name + ' · Engine: ' + spec.engine + '</small>' +
+    '<br><small>Textures - Wall: ' + $("offWallTex").selectedOptions[0].textContent + ' · Ground: ' + $("offFloorTex").selectedOptions[0].textContent + ' · Ceiling: ' + $("offCeilTex").selectedOptions[0].textContent + '</small>';
   $("game").scrollIntoView({behavior:"smooth", block:"center"});
 }
 $("offBuild").onclick = () => startOffline(false);
