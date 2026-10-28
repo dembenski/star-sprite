@@ -49,7 +49,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b>Welcome to Star Sprite — first time here?</b><br>Star Sprite is an AI game-making engine: type a prompt, get a playable game.<br>1. Play the demo — click "Built-in demo map". No key needed.<br>2. Build a game with no key — Advanced tab, then Offline Game Maker. Pick a theme and build.<br>3. Edit by hand — Advanced tab, then Hand Editor.<br>4. With a key — Make game tab: type a prompt, pick an engine, click Generate. Meta Wonder or Groq, your choice.<br><button onclick="closeTour()" style="margin-top:8px">Close</button></div>
 
 <section id="makeTab" class="card">
-<div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div>
+<div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div><div class="row"><span>Try: </span><button class="alt" onclick="setStarter(0)">Candy rescue</button><button class="alt" onclick="setStarter(1)">Haunted dungeon</button><button class="alt" onclick="setStarter(2)">Pirate battle</button><button class="alt" onclick="setStarter(3)">Neon city</button><button class="alt" onclick="setStarter(4)">Wild west</button></div>
 <div class="row"><select id="engineSel"><option value="fps">FPS 2.5D Raycaster</option><option value="top">Top-view Shooter</option><option value="side">Side-scroll Shooter</option><option value="3d">True 3D (WebGL)</option></select>
 <button class="alt" id="testGL" type="button">Test WebGL</button>
 <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
@@ -315,7 +315,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <h3>Spec</h3><textarea id="specBox" rows="22" cols="38"></textarea>
 <h3>Talking NPC</h3><div class="chat" id="npcLog">Walk near an NPC in game, then chat here. NPCs never go silent.</div>
 <div class="row"><input id="npcInput" placeholder="Say hello..."><button id="npcSend">Talk</button></div>
-<details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity. · Wonder Studio previews before Apply. · First-run tour shows once, re-opens from Tour button.</small></details>
+<details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity. · Wonder Studio previews before Apply. · First-run tour shows once, re-opens from Tour button. · Prompt starter chips fill the prompt box.</small></details>
 </div></div></section>
 
 <div class="card"><div id="hud">Load a demo or generate a level.</div>
@@ -337,6 +337,8 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 "use strict";
 const $=id=>document.getElementById(id);
 const EXAMPLE_PROMPTS=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];
+const STARTER_PROMPTS=["A candy castle rescue: brave cupcake hero, custard blob enemies, a boss guarding the Lemon Star","A haunted dungeon crawl with skeleton knights, hidden treasure chests and a ghost boss","A pirate ship battle: cannon fights on deck, a treasure map and a kraken boss","A neon city chase with robot drones, laser gates and a chrome boss","A wild west showdown: bandits, a runaway train and a duel at high noon"];
+function setStarter(i){ if(STARTER_PROMPTS[i]) $("prompt").value=STARTER_PROMPTS[i]; }
 let spec=null,feed=JSON.parse(localStorage.getItem("ff_feed")||"[]"),undoS=[],redoS=[],roomClip=null,bitCtx=[],keys={},playing=false,last=0,mobile={x:0,y:0,run:false,fire:false};
 const isTouch=matchMedia("(pointer:coarse)").matches&&'ontouchstart'in window; if(isTouch)$("mobile").style.display="block";
 // ---------- spec helpers ----------
