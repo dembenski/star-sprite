@@ -178,8 +178,8 @@ Groq games never call Meta.</small></p>
 </div>
 
 <div class="card" style="background:#241233;border:2px solid #62d8ff">
-<h3>Free textures — Poly Haven (CC0, free)</h3>
-<p><small>Free CC0 textures from Poly Haven (public domain, no attribution). Pick a surface, then click a texture to put it on this level. It rides in the level's shared link, feed save, and export, and sticks to newly generated or remixed levels until you clear it. Needs internet — if a texture fails to load, the level keeps its current look. Painted textures are already built into every level; this card only adds the free photo textures.</small></p>
+<h3>Free textures — Poly Haven + Wonder Textures</h3>
+<p><small>Free CC0 textures from Poly Haven (public domain, no attribution). Pick a surface, then click a texture to put it on this level. It rides in the level's shared link, feed save, and export, and sticks to newly generated or remixed levels until you clear it. Poly Haven textures need internet — if one fails to load, the level keeps its current look. Wonder Textures are built into the app itself, need no internet, and never get lost — send Bit a Wonder texture to add one here. Painted textures are already built into every level; this card only adds the free photo textures.</small></p>
 <div class="row">
   <label>Apply to:
   <select id="freeTexTarget">
@@ -2329,16 +2329,50 @@ var FREE_TEX_PACK = [
   { slug: "fabric_pattern_07", name: "Fabric Pattern 07", cat: "Fabric", v: "8bf5bc82" },
   { slug: "leather_white", name: "Leather White", cat: "Fabric", v: "818252e6" }
 ];
-var FREE_TEX_CATS = ["All", "Brick", "Wood", "Stone", "Concrete", "Metal", "Ground", "Tile", "Fabric"];
+// Built-in Wonder Textures (v33): Michael's own Muse Wonder textures,
+// packed into the app so EVERY player can use them. Entries are added
+// by Bit in an update from textures Michael sends (a Wonder Studio
+// download PNG, or a feed Export file carrying the art). Keep entries
+// small (512 JPEG) so the app file stays lean. Specs store only the
+// "wonder:<id>" string; the bytes live here.
+var WONDER_TEX_PACK = [
+  // { id: "hellforge-wall", name: "Hellforge Wall", kind: "wall", url: "data:image/jpeg;base64,..." },
+];
+var wonderImgCache = {};
+function wonderTexImage(id){
+  if(wonderImgCache[id]) return wonderImgCache[id];
+  var e = null;
+  WONDER_TEX_PACK.forEach(function(t){ if(t.id===id) e = t; });
+  if(!e || !e.url) return null;
+  var im = new Image(); im.src = e.url; wonderImgCache[id] = im; return im;
+}
+function resolveFreeTexURL(url){
+  if(url && url.indexOf("wonder:")===0){
+    var e = null;
+    WONDER_TEX_PACK.forEach(function(t){ if(t.id===url.slice(7)) e = t; });
+    return e ? e.url : null;
+  }
+  return url;
+}
+var FREE_TEX_CATS = ["All", "Wonder", "Brick", "Wood", "Stone", "Concrete", "Metal", "Ground", "Tile", "Fabric"];
 var freeTexFilter = "All";
 function renderFreeTexGrid(){
   var cats = $("freeTexCats"); if(!cats) return;
   cats.innerHTML = FREE_TEX_CATS.map(function(c){ return "<button data-cat=\"" + c + "\"" + (c===freeTexFilter ? " disabled" : "") + ">" + c + "</button>"; }).join(" ");
+  var wonderList = (freeTexFilter==="All" || freeTexFilter==="Wonder") ? WONDER_TEX_PACK : [];
   var list = FREE_TEX_PACK.filter(function(t){ return freeTexFilter==="All" || t.cat===freeTexFilter; });
-  $("freeTexGrid").innerHTML = list.map(function(t){
+  var gridHtml = list.map(function(t){
     var jpg = polyJpg(t.slug);
     return "<div class=\"free-tex-card\" data-slug=\"" + t.slug + "\" style=\"display:inline-block;width:120px;margin:4px;cursor:pointer;text-align:center\"><img loading=\"lazy\" src=\"" + polyThumb(t.slug, t.v) + "\" data-fallback=\"" + jpg + "\" onerror=\"if(!this.dataset.tried){this.dataset.tried=1;this.src=this.dataset.fallback;}else{this.style.opacity=0.3;}\" style=\"width:120px;height:120px;object-fit:cover;border-radius:8px\"><div>" + t.name + "</div><div class=\"small\">" + t.cat + " - Poly Haven</div></div>";
   }).join("");
+  gridHtml += wonderList.map(function(t){
+    return '<div class="free-tex-card" data-wonder="' + t.id + '" style="display:inline-block;width:120px;margin:4px;cursor:pointer;text-align:center"><img loading="lazy" src="' + t.url + '" onerror="this.style.opacity=0.3;" style="width:120px;height:120px;object-fit:cover;border-radius:8px"><div>' + t.name + '</div><div class="small">Wonder Textures</div></div>';
+  }).join("");
+  if(freeTexFilter==="Wonder" && !WONDER_TEX_PACK.length){
+    gridHtml = '<p><small>No Wonder textures packed yet. They live in the app itself, so they never get lost. Send Bit a Wonder texture (a Wonder Studio download, or a feed Export file carrying the art) and he will pack it into the next update under Wonder Textures.</small></p>';
+  }
+  $("freeTexGrid").innerHTML = gridHtml;
+
   renderFreeTexSticky();
 }
 function loadFreeTexSticky(){ try{ return JSON.parse(localStorage.getItem("ff_freeTexSticky") || "null") || {}; }catch(e){ return {}; } }
@@ -2389,11 +2423,15 @@ function restoreFreeTex(){
     let img = new Image();
     img.onload = ()=>{ if(spec!==mySpec) return; setFreeTexArt(slot, img); draw(); };
     img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + slot + " did not load (needs internet). Keeping the current look."; };
-    img.src = entry.url;
+    var freeSrc = resolveFreeTexURL(entry.url);
+    if(!freeSrc) return;
+    img.src = freeSrc;
   });
 }
 function applyFreeTex(slot, url, label){
   if(!spec){ $("freeTexStatus").textContent = "Load or generate a game first, then pick a texture."; return; }
+  var freeSrc = resolveFreeTexURL(url);
+  if(!freeSrc){ $("freeTexStatus").textContent = "That Wonder texture is not packed in this version. Update the app and try again."; return; }
   let mySpec = spec;
   applyFreeTexToSpec(spec, slot, url, label);
   let p = loadFreeTexSticky(); p[slot] = {url:url, label:label}; saveFreeTexSticky(p);
@@ -2408,7 +2446,7 @@ function applyFreeTex(slot, url, label){
     $("freeTexStatus").textContent = slot + " texture: " + label + ". It sticks to new levels until you clear it.";
   };
   img.onerror = ()=>{ $("freeTexStatus").textContent = "That texture did not load (needs internet). Keeping the current look."; };
-  img.src = url;
+  img.src = freeSrc;
 }
 function removeFreeTex(slot){
   if(!spec || !spec.freeTex || !spec.freeTex[slot]){ $("freeTexStatus").textContent = "No free texture on " + slot + " right now."; return; }
@@ -2431,7 +2469,8 @@ if($("freeTexCats")) $("freeTexCats").addEventListener("click", function(ev){
 if($("freeTexGrid")) $("freeTexGrid").addEventListener("click", function(ev){
   var card = ev.target.closest ? ev.target.closest(".free-tex-card") : null;
   if(!card) return;
-  var slug = card.getAttribute("data-slug"), entry = null;
+  var slug = card.getAttribute("data-slug"), wonderId = card.getAttribute("data-wonder"), entry = null;
+  if(wonderId){ var wName = ""; WONDER_TEX_PACK.forEach(function(t){ if(t.id===wonderId) wName = t.name; }); if(wName) applyFreeTex($("freeTexTarget").value, "wonder:" + wonderId, wName + " (Wonder Textures)"); return; }
   FREE_TEX_PACK.forEach(function(t){ if(t.slug===slug) entry = t; });
   if(entry) applyFreeTex($("freeTexTarget").value, polyJpg(slug), entry.name + " (Poly Haven, free)");
 });
@@ -2480,6 +2519,7 @@ function texLibCanvas(id){
   if(id === "art_floor") return ART.floor;
   if(id === "art_ceiling") return ART.ceiling;
   if(id.indexOf("poly:") === 0) return polyTexImage(id.slice(5));
+  if(id.indexOf("wonder:") === 0) return wonderTexImage(id.slice(7));
   if(window.POLYHAVEN_TEXTURES && POLYHAVEN_TEXTURES[id]) return POLYHAVEN_TEXTURES[id];
   let e = TEXLIB.find(t => t.id === id);
   if(!e) return null;
@@ -2490,6 +2530,7 @@ function refreshTextureSelects(){
     '<option value="art_wall">Current game: wall image</option>' +
     '<option value="art_floor">Current game: floor image</option>' +
     '<option value="art_ceiling">Current game: ceiling image</option>';
+  if(typeof WONDER_TEX_PACK !== "undefined") WONDER_TEX_PACK.forEach(t => opts += '<option value="wonder:' + t.id + '">Wonder Textures: ' + t.name + '</option>');
   if(typeof FREE_TEX_PACK !== "undefined") FREE_TEX_PACK.forEach(t => opts += '<option value="poly:' + t.slug + '">Poly Haven: ' + t.name + '</option>');
   if(window.POLYHAVEN_TEXTURES) Object.keys(window.POLYHAVEN_TEXTURES).forEach(k => opts += '<option value="' + k + '">Poly Haven: ' + k + '</option>');
   TEXLIB.forEach(t => opts += '<option value="' + t.id + '">' + t.source + ': ' + t.name + '</option>');
