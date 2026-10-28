@@ -51,6 +51,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <section id="makeTab" class="card">
 <div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div>
 <div class="row"><select id="engineSel"><option value="fps">FPS 2.5D Raycaster</option><option value="top">Top-view Shooter</option><option value="side">Side-scroll Shooter</option><option value="3d">True 3D (WebGL)</option></select>
+<button class="alt" id="testGL" type="button">Test WebGL</button>
 <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button>
@@ -1334,7 +1335,7 @@ function draw(){
     if(draw3D()){ $("hud").textContent="TRUE 3D (WebGL) · "+hudLine(); return; }
     GLC.style.display="none"; cv.style.visibility="visible";
     drawFPS();
-    $("hud").innerHTML="WebGL truly unavailable on this device - showing 2.5D instead. "+hudText();
+    $("hud").innerHTML="WebGL truly unavailable on this device (" + glFailed + ") - showing 2.5D instead. "+hudText();
     return;
   }
   GLC.style.display="none"; cv.style.visibility="visible";
@@ -1510,29 +1511,60 @@ function drawTop(){let _wc=worldColors();ctx.fillStyle=_wc.floorColor;ctx.fillRe
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D"){if(ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():_wc.secondaryWallColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}}}));}
 function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}}));}
 // True 3D — separate WebGL canvas, raw WebGL, no libraries
-let GLC=$("gameGL"), gl=GLC?GLC.getContext("webgl"):null, prog, uM, uC, aP, cubeBuf;
+let GLC=$("gameGL"), gl=null, prog=null, glReady=false, glFailed="", uM, uC, aP, cubeBuf;
 function initGL(){
-  if(!gl) return false;
-  let vs="attribute vec3 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,1.);}";
-  let fs="precision mediump float;uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}";
-  function sh(t,s){let o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
-  prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));
-  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(prog);
-  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return false;
-  uM=gl.getUniformLocation(prog,"m"); uC=gl.getUniformLocation(prog,"c");
-  aP=gl.getAttribLocation(prog,"p");
-  let v=[];
-  let F=[[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,-.5]],
-         [[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],
-         [[-.5,-.5,-.5],[-.5,.5,-.5],[-.5,.5,.5],[-.5,-.5,.5]],
-         [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],
-         [[-.5,-.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[.5,-.5,-.5]],
-         [[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]]];
-  F.forEach(f=>{v.push(...f[0],...f[1],...f[2],...f[0],...f[2],...f[3]);});
-  cubeBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
+  if(glReady) return true;
+  if(!gl){
+    try{
+      gl = GLC ? (GLC.getContext("webgl",{antialias:true,depth:true,alpha:false}) || GLC.getContext("experimental-webgl",{antialias:true,depth:true})) : null;
+    }catch(e){ gl = null; }
+    if(!gl){ glFailed = "Browser returned no WebGL context."; return false; }
+  }
+  if(!prog){
+    let vs="attribute vec3 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,1.);}";
+    let fs="precision mediump float;uniform vec3 c;void main(){gl_FragColor=vec4(c,1.);}";
+    function sh(t,src){let o=gl.createShader(t);gl.shaderSource(o,src);gl.compileShader(o);
+      if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o));
+      return o;}
+    try{
+      prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));
+      gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(prog);
+      if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    }catch(e){ glFailed = "WebGL shader failed: " + e.message; return false; }
+    uM=gl.getUniformLocation(prog,"m"); uC=gl.getUniformLocation(prog,"c");
+    aP=gl.getAttribLocation(prog,"p");
+    let v=[];
+    let F=[[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,-.5]],
+           [[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],
+           [[-.5,-.5,-.5],[-.5,.5,-.5],[-.5,.5,.5],[-.5,-.5,.5]],
+           [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],
+           [[-.5,-.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[.5,-.5,-.5]],
+           [[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]]];
+    F.forEach(f=>{v.push(...f[0],...f[1],...f[2],...f[0],...f[2],...f[3]);});
+    cubeBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,cubeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
+  }
+  glReady = true;
   return true;
 }
+// If the GPU drops the context, drop the program so the next draw
+// rebuilds it; on restore, clear the failure and redraw. The gl
+// object itself is kept: after a restore it becomes usable again.
+if(GLC){
+  GLC.addEventListener("webglcontextlost", e => { e.preventDefault(); glReady = false; prog = null; });
+  GLC.addEventListener("webglcontextrestored", () => { glFailed = ""; draw(); });
+}
+// Test WebGL button (next to the engine dropdown): proves on-screen
+// whether this browser really has WebGL, and names the GPU when it does.
+$("testGL").onclick = () => {
+  let ok = initGL();
+  alert(ok
+    ? "WebGL WORKING\nRenderer: " + gl.getParameter(gl.RENDERER) +
+      "\nVersion: " + gl.getParameter(gl.VERSION) +
+      "\nNow pick True 3D and Generate / Play."
+    : "WebGL genuinely unavailable here: " + glFailed +
+      "\nTry Chrome/Edge, enable hardware acceleration, or update the GPU driver.");
+};
 function persp(fov,asp,n,f){let t=1/Math.tan(fov/2);return[t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0];}
 function lookAt(e,c,up){
   let z=norm(sub(e,c)),x=norm(cross(up,z)),y=cross(z,x);
@@ -1551,7 +1583,7 @@ function drawCube(mvp,col){
   gl.uniform3fv(uC,col); gl.drawArrays(gl.TRIANGLES,0,36);
 }
 function draw3D(){
-  if(!gl || (!prog && !initGL())) return false;
+  if(!initGL()) return false;
   GLC.style.display="block"; cv.style.visibility="hidden";
   gl.viewport(0,0,960,540); gl.enable(gl.DEPTH_TEST);
   let st=worldColors(), sky=hexC(st.skyColor);
