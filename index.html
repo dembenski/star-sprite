@@ -216,11 +216,11 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 
 <h4>Textures — pick per surface</h4>
 <div class="row">
-<label>Walls <select id="offWallTex"></select></label>
-<label>Ground <select id="offFloorTex"></select></label>
-<label>Ceiling <select id="offCeilTex"></select></label>
-<label>Weapon skin <select id="offWeaponTex"></select></label>
-<label>Enemy skin <select id="offEnemyTex"></select></label>
+<label>Walls <select id="offWallTex"></select> <img id="offWallPrev" style="width:48px;height:48px;object-fit:contain;background:#0a141d;border:1px solid #37e0ff;vertical-align:middle;display:none"></label>
+<label>Ground <select id="offFloorTex"></select> <img id="offFloorPrev" style="width:48px;height:48px;object-fit:contain;background:#0a141d;border:1px solid #37e0ff;vertical-align:middle;display:none"></label>
+<label>Ceiling <select id="offCeilTex"></select> <img id="offCeilPrev" style="width:48px;height:48px;object-fit:contain;background:#0a141d;border:1px solid #37e0ff;vertical-align:middle;display:none"></label>
+<label>Weapon skin <select id="offWeaponTex"></select> <img id="offWeaponPrev" style="width:48px;height:48px;object-fit:contain;background:#0a141d;border:1px solid #37e0ff;vertical-align:middle;display:none"></label>
+<label>Enemy skin <select id="offEnemyTex"></select> <img id="offEnemyPrev" style="width:48px;height:48px;object-fit:contain;background:#0a141d;border:1px solid #37e0ff;vertical-align:middle;display:none"></label>
 </div>
 <div class="row">
 <input type="file" id="offTexUpload" accept="image/*" multiple>
@@ -2672,7 +2672,24 @@ function refreshTextureSelects(){
     let el = $(id); if(!el) return;
     let keep = el.value; el.innerHTML = opts + (id === "offEnemyTex" ? monsterOpts : ""); if(keep) el.value = keep;
   });
+  updateOffTexPreviews();
 }
+// v43: preview thumbnails beside the Offline Maker texture selects.
+// Resolves through texLibCanvas, so the preview is exactly what the
+// build will use. Default (painted at build time) shows no preview.
+function updateOffTexPreviews(){
+  [["offWallTex","offWallPrev"],["offFloorTex","offFloorPrev"],["offCeilTex","offCeilPrev"],["offWeaponTex","offWeaponPrev"],["offEnemyTex","offEnemyPrev"]].forEach(pair => {
+    var s = $(pair[0]), p = $(pair[1]); if(!s || !p) return;
+    var v = s.value;
+    if(!v || v === "default"){ p.style.display = "none"; p.removeAttribute("src"); return; }
+    var im = null; try{ im = texLibCanvas(v); }catch(e){}
+    if(!im){ p.style.display = "none"; return; }
+    if(im.tagName === "CANVAS"){ p.src = im.toDataURL(); p.style.display = ""; return; }
+    if(im.complete && im.naturalWidth){ p.src = im.src; p.style.display = ""; return; }
+    im.addEventListener("load", () => { if(s.value === v && im.naturalWidth){ p.src = im.src; p.style.display = ""; } });
+  });
+}
+["offWallTex","offFloorTex","offCeilTex","offWeaponTex","offEnemyTex"].forEach(id => { var el = $(id); if(el) el.onchange = updateOffTexPreviews; });
 const OFF_THEMES = {
  "Space Station":{sky:"#020610",wall:"#2b3a67",wall2:"#3f6fb5",floor:"#101827",accent:"#37e0ff",foes:["Rust Drone","Void Bot","Plasma Wraith"],gun:"Pulse"},
  "Dark Dungeon":{sky:"#0a0806",wall:"#5a5148",wall2:"#6e6257",floor:"#24201c",accent:"#ffb347",foes:["Crypt Ghoul","Stone Golem","Ember Imp"],gun:"Rune"},
