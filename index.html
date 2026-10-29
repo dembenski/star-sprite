@@ -186,6 +186,7 @@ Groq games never call Meta.</small></p>
     <option value="wall">Walls</option>
     <option value="floor">Ground / Floor</option>
     <option value="ceiling">Ceiling / Sky</option>
+    <option value="enemy">Enemies</option>
   </select></label>
   <button id="freeTexRemoveBtn">Remove from this level</button>
 </div>
@@ -678,9 +679,9 @@ async function remixHighResArt(){
   jobs.push(["ceiling texture", async()=>{ let c = metaCanvas(await metaImage(promptFor("ceiling"))); ART.ceiling = c; (spec.customArt = spec.customArt || {}).ceiling = c.toDataURL("image/jpeg", .82); if(spec.freeTex) delete spec.freeTex.ceiling; }]);
   let types = [...new Map((spec.enemyTypes||[]).map(e=>[e.id, e])).values()].slice(0,3);
   types.forEach(t=>{
-    jobs.push(["sprite: "+t.name, async()=>{ let img = await metaImage(promptFor("enemy", t.id)); let c = chromaKey(img); ART.sprites[t.id] = [c, c]; (spec.customArt = spec.customArt || {})["enemy_"+t.id] = toJpeg(img); }]);
+    jobs.push(["sprite: "+t.name, async()=>{ let img = await metaImage(promptFor("enemy", t.id)); let c = chromaKey(img); ART.sprites[t.id] = [c, c]; (spec.customArt = spec.customArt || {})["enemy_"+t.id] = toJpeg(img); if(spec.freeTex) delete spec.freeTex.enemy; }]);
   });
-  jobs.push(["NPC sprite", async()=>{ let img = await metaImage(promptFor("npc")); let c = chromaKey(img); ART.sprites["__npc"] = [c, c]; spec.savedArt = spec.savedArt || {}; spec.savedArt.sprites = Object.assign({}, spec.savedArt.sprites, {__npc: c.toDataURL("image/png")}); }]);
+  jobs.push(["NPC sprite", async()=>{ let img = await metaImage(promptFor("npc")); let c = chromaKey(img); ART.sprites["__npc"] = [c, c]; spec.savedArt = spec.savedArt || {}; spec.savedArt.sprites = Object.assign({}, spec.savedArt.sprites, {__npc: c.toDataURL("image/png")}); if(spec.freeTex) delete spec.freeTex.enemy; }]);
   jobs.push(["weapon image", async()=>{ let img = await metaImage(promptFor("weapon")); let c = chromaKey(img); ART.weaponIdle = c; ART.weaponFire = c; (spec.customArt = spec.customArt || {}).weapon = toJpeg(img); }]);
   let barWrap=$("artBarWrap"), bar=$("artBar"), barLabel=$("artBarLabel");
   if(barWrap){ barWrap.style.display="block"; if(bar) bar.style.width="0%"; if(barLabel) barLabel.textContent="Asking Meta for high-res 1024 textures…"; }
@@ -1041,6 +1042,7 @@ async function buildMetaArtPack(spec, onStatus){
           ", one full-body front-facing game sprite, solid pure magenta background, no text, no other characters");
         ART.sprites[t.id] = [chromaKey(img), chromaKey(img)];
         (ART.spritesFromMeta = ART.spritesFromMeta || {})[t.id] = true;
+        if(spec.freeTex) delete spec.freeTex.enemy;
       }]);
     });
     jobs.push(["NPC sprite", async()=>{
@@ -1049,6 +1051,7 @@ async function buildMetaArtPack(spec, onStatus){
         ", front view, SOLID PURE MAGENTA #FF00FF background, no text, retro PSX game sprite");
       ART.sprites["__npc"] = [chromaKey(img), chromaKey(img)];
       (ART.spritesFromMeta = ART.spritesFromMeta || {})["__npc"] = true;
+      if(spec.freeTex) delete spec.freeTex.enemy;
     }]);
     jobs.push(["weapon image", async()=>{
       let img=await metaImage(
@@ -2278,7 +2281,7 @@ function saveCustomArt(target, enemyId, canvas){
   if(target==="weapon" || target==="enemy"){ sx.fillStyle="#FF00FF"; sx.fillRect(0,0,512,512); }
   sx.drawImage(canvas,0,0,512,512);
   spec.customArt[key] = small.toDataURL("image/jpeg", .82);
-  if((target==="wall" || target==="floor" || target==="ceiling") && spec.freeTex) delete spec.freeTex[target];
+  if((target==="wall" || target==="floor" || target==="ceiling" || target==="enemy") && spec.freeTex) delete spec.freeTex[target];
   $("specBox").value = JSON.stringify(spec, null, 1);
   updateFeedCardArt();
 }
@@ -2305,6 +2308,7 @@ function restoreSavedArt(){
   if(sa.floor && !ca.floor) put(sa.floor, img=>{ ART.floor = imgToCanvasKeep(img); });
   if(sa.weapon && !ca.weapon) put(sa.weapon, img=>{ let c = imgToCanvasKeep(img); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMeta = true; });
   Object.entries(sa.sprites||{}).forEach(([id, url])=>{
+    if(spec.freeTex && spec.freeTex.enemy) return;
     if(ca["enemy_"+id]) return;
     put(url, img=>{ let c = imgToCanvasKeep(img); ART.sprites[id] = [c, c]; });
   });
@@ -2346,7 +2350,7 @@ function restoreCustomArt(){
       if(key==="floor") ART.floor = c;
       if(key==="ceiling") ART.ceiling = c;
       if(key==="weapon"){ ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMeta = true; }
-      if(key.startsWith("enemy_")) ART.sprites[key.slice(6)] = [c, c];
+      if(key.startsWith("enemy_") && !(spec.freeTex && spec.freeTex.enemy)) ART.sprites[key.slice(6)] = [c, c];
       draw();
     };
     img.src = url;
@@ -2455,14 +2459,20 @@ function resolveFreeTexURL(url){
     WONDER_TEX_PACK.forEach(function(t){ if(t.id===url.slice(7)) e = t; });
     return e ? e.url : null;
   }
+  if(url && url.indexOf("monster:")===0){
+    var m = null;
+    MONSTER_PACK.forEach(function(t){ if(t.id===url.slice(8)) m = t; });
+    return m ? m.url : null;
+  }
   return url;
 }
-var FREE_TEX_CATS = ["All", "Wonder", "Brick", "Wood", "Stone", "Concrete", "Metal", "Ground", "Tile", "Fabric"];
+var FREE_TEX_CATS = ["All", "Wonder", "Brick", "Wood", "Stone", "Concrete", "Metal", "Ground", "Tile", "Fabric", "Enemies"];
 var freeTexFilter = "All";
 function renderFreeTexGrid(){
   var cats = $("freeTexCats"); if(!cats) return;
   cats.innerHTML = FREE_TEX_CATS.map(function(c){ return "<button data-cat=\"" + c + "\"" + (c===freeTexFilter ? " disabled" : "") + ">" + c + "</button>"; }).join(" ");
   var wonderList = (freeTexFilter==="All" || freeTexFilter==="Wonder") ? WONDER_TEX_PACK : [];
+  var monsterList = (freeTexFilter==="All" || freeTexFilter==="Enemies") ? (typeof MONSTER_PACK !== "undefined" ? MONSTER_PACK : []) : [];
   var list = FREE_TEX_PACK.filter(function(t){ return freeTexFilter==="All" || t.cat===freeTexFilter; });
   var gridHtml = list.map(function(t){
     var jpg = polyJpg(t.slug);
@@ -2470,6 +2480,9 @@ function renderFreeTexGrid(){
   }).join("");
   gridHtml += wonderList.map(function(t){
     return '<div class="free-tex-card" data-wonder="' + t.id + '" style="display:inline-block;width:120px;margin:4px;cursor:pointer;text-align:center"><img loading="lazy" src="' + t.url + '" onerror="this.style.opacity=0.3;" style="width:120px;height:120px;object-fit:cover;border-radius:8px"><div>' + t.name + '</div><div class="small">Wonder Textures</div></div>';
+  }).join("");
+  gridHtml += monsterList.map(function(t){
+    return '<div class="free-tex-card" data-monster="' + t.id + '" style="display:inline-block;width:120px;margin:4px;cursor:pointer;text-align:center"><img loading="lazy" src="' + t.url + '" onerror="this.style.opacity=0.3;" style="width:120px;height:120px;object-fit:cover;border-radius:8px"><div>' + t.name + '</div><div class="small">Monster Sprites</div></div>';
   }).join("");
   if(freeTexFilter==="Wonder" && !WONDER_TEX_PACK.length){
     gridHtml = '<p><small>No Wonder textures packed yet. They live in the app itself, so they never get lost. Send Bit a Wonder texture (a Wonder Studio download, or a feed Export file carrying the art) and he will pack it into the next update under Wonder Textures.</small></p>';
@@ -2484,7 +2497,7 @@ function clearFreeTexSticky(){ try{ localStorage.removeItem("ff_freeTexSticky");
 function renderFreeTexSticky(){
   var p = loadFreeTexSticky(), el = $("freeTexSticky"), btn = $("freeTexClearBtn");
   if(!el) return;
-  var parts = ["wall", "floor", "ceiling"].filter(function(k){ return p[k]; }).map(function(k){ return k + ": " + (p[k].label || k); });
+  var parts = ["wall", "floor", "ceiling", "enemy"].filter(function(k){ return p[k]; }).map(function(k){ return k + ": " + (p[k].label || k); });
   if(parts.length){ el.textContent = "Sticking to new levels: " + parts.join(" - ") + ". Generating or remixing a game keeps these textures."; if(btn) btn.style.display = "inline-block"; }
   else { el.textContent = "Pick a texture and it sticks to newly generated or remixed levels until you clear it."; if(btn) btn.style.display = "none"; }
 }
@@ -2498,7 +2511,7 @@ function applyFreeTexToSpec(sp, slot, url, label){
 }
 function applyStickyFreeTex(sp){
   var p = loadFreeTexSticky();
-  ["wall", "floor", "ceiling"].forEach(function(slot){
+  ["wall", "floor", "ceiling", "enemy"].forEach(function(slot){
     if(p[slot] && !(sp.freeTex && sp.freeTex[slot])) applyFreeTexToSpec(sp, slot, p[slot].url, p[slot].label);
   });
   return sp;
@@ -2508,6 +2521,7 @@ function setFreeTexArt(slot, img){
   if(slot==="wall"){ ART.wall = c; ART.wall2 = makeVariant(c); ART.wallFromMeta = false; }
   if(slot==="floor"){ ART.floor = c; ART.floorFromMeta = false; }
   if(slot==="ceiling"){ ART.ceiling = c; }
+  if(slot==="enemy"){ Object.keys(ART.sprites || {}).forEach(k => ART.sprites[k] = [c, c]); }
 }
 function updateFeedCardFreeTex(){
   if(!spec) return;
@@ -2558,10 +2572,11 @@ function removeFreeTex(slot){
   if(slot==="wall"){ ART.wall = makeTextureFromDesign(spec, "wall"); ART.wall2 = makeTextureFromDesign(spec, "wall-secondary"); ART.wallFromMeta = false; }
   if(slot==="floor"){ ART.floor = makeTextureFromDesign(spec, "floor"); ART.floorFromMeta = false; }
   if(slot==="ceiling"){ ART.ceiling = null; }
+  if(slot==="enemy"){ (spec.enemyTypes||[]).forEach(type=>{ ART.sprites[type.id] = [spriteFromPixelRows(type, 0), spriteFromPixelRows(type, 1)]; }); delete ART.sprites["__npc"]; restoreSavedArt(); restoreCustomArt(); }
   $("specBox").value = JSON.stringify(spec, null, 1);
   updateFeedCardFreeTex();
   draw();
-  $("freeTexStatus").textContent = "Free texture removed from " + slot + ". Painted look restored for that surface.";
+  $("freeTexStatus").textContent = "Free texture removed from " + slot + (slot==="enemy" ? ". Previous enemy art restored." : ". Painted look restored for that surface.");
 }
 if($("freeTexCats")) $("freeTexCats").addEventListener("click", function(ev){
   var b = ev.target.closest ? ev.target.closest("button") : null;
@@ -2572,8 +2587,9 @@ if($("freeTexCats")) $("freeTexCats").addEventListener("click", function(ev){
 if($("freeTexGrid")) $("freeTexGrid").addEventListener("click", function(ev){
   var card = ev.target.closest ? ev.target.closest(".free-tex-card") : null;
   if(!card) return;
-  var slug = card.getAttribute("data-slug"), wonderId = card.getAttribute("data-wonder"), entry = null;
+  var slug = card.getAttribute("data-slug"), wonderId = card.getAttribute("data-wonder"), monsterId = card.getAttribute("data-monster"), entry = null;
   if(wonderId){ var wName = ""; WONDER_TEX_PACK.forEach(function(t){ if(t.id===wonderId) wName = t.name; }); if(wName) applyFreeTex($("freeTexTarget").value, "wonder:" + wonderId, wName + " (Wonder Textures)"); return; }
+  if(monsterId){ var mName = ""; MONSTER_PACK.forEach(function(t){ if(t.id===monsterId) mName = t.name; }); if(mName) applyFreeTex("enemy", "monster:" + monsterId, mName + " (Monster Sprites)"); return; }
   FREE_TEX_PACK.forEach(function(t){ if(t.slug===slug) entry = t; });
   if(entry) applyFreeTex($("freeTexTarget").value, polyJpg(slug), entry.name + " (Poly Haven, free)");
 });
