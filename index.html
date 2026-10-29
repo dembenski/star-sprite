@@ -1147,6 +1147,10 @@ async function mixerTexture(getters, rng){
   if(!list.length) return null;
   let pick = ()=>list[Math.floor(rng() * list.length)];
   let base = pick(), over = pick();
+  // v53: base and overlay must differ, or the job is one texture overlaid
+  // with itself and visibly "not mixed". Bounded so a degenerate RNG
+  // can never hang the job; a one-texture list is accepted as-is.
+  for(let t = 0; t < 10 && list.length > 1 && over[0] === base[0] && over[1] === base[1]; t++) over = pick();
   let bImg = await mixerLoad(base[0](base[1])); if(!bImg || !bImg.naturalWidth) return null;
   let c = document.createElement("canvas"); c.width = 256; c.height = 256; let x = c.getContext("2d");
   x.drawImage(bImg, 0, 0, 256, 256);
