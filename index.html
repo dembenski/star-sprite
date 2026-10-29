@@ -1164,13 +1164,13 @@ async function mixerTexture(getters, rng){
   for(let i=0;i<900;i++){ x.fillStyle = rng() < 0.5 ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)"; x.fillRect(Math.floor(rng() * 256), Math.floor(rng() * 256), 1, 1); }
   return c;
 }
-async function mixerSprite(im, rng){
+async function mixerSprite(im, rng, noFlip){
   let src = await mixerLoad(im); if(!src) return null;
   // Canvases (the painted weapon) have width/height, not naturalWidth.
   let w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
   if(!w || !h) return null;
   let c = document.createElement("canvas"); c.width = w; c.height = h; let x = c.getContext("2d");
-  x.save(); mixerFlip(x, w, h, rng); x.drawImage(src, 0, 0); x.restore();
+  x.save(); if(!noFlip) mixerFlip(x, w, h, rng); x.drawImage(src, 0, 0); x.restore();
   mixerHue(c, Math.floor(rng() * 360));
   x = c.getContext("2d"); x.save(); x.globalCompositeOperation = "source-atop";
   x.fillStyle = "rgba(" + Math.floor(rng() * 255) + "," + Math.floor(rng() * 255) + "," + Math.floor(rng() * 255) + ",0.18)"; x.fillRect(0, 0, w, h); x.restore();
@@ -1193,7 +1193,7 @@ async function buildMixerArtPack(spec){
     jobs.push(["sprite: " + (pe.typeId || "?"), async()=>{ let m = pickMonster(); let c = await mixerSprite(monsterTexImage(m.id), rng); if(!c) throw new Error("no sprite source"); ART.sprites[pe.typeId] = [c, c]; (ART.spritesFromMixer = ART.spritesFromMixer || {})[pe.typeId] = true; if(spec.freeTex){ delete spec.freeTex.enemy; delete spec.freeTex.enemyByType; } }]);
   });
   jobs.push(["NPC sprite", async()=>{ let m = pickMonster(); let c = await mixerSprite(monsterTexImage(m.id), rng); if(!c) throw new Error("no sprite source"); ART.sprites["__npc"] = [c, c]; (ART.spritesFromMixer = ART.spritesFromMixer || {})["__npc"] = true; }]);
-  jobs.push(["weapon image", async()=>{ if(!ART.weaponIdle) buildWeaponArt(spec); if(!ART.weaponIdle) throw new Error("no weapon"); let c = await mixerSprite(ART.weaponIdle, rng); if(!c) throw new Error("no weapon"); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMixer = true; }]);
+  jobs.push(["weapon image", async()=>{ if(!ART.weaponIdle) buildWeaponArt(spec); if(!ART.weaponIdle) throw new Error("no weapon"); let c = await mixerSprite(ART.weaponIdle, rng, true); if(!c) throw new Error("no weapon"); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMixer = true; }]);
   total = jobs.length;
   for(let [name, job] of jobs){
     try{ await job(); done++; }catch(e){ failed.push(name); }
