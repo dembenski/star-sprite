@@ -1518,7 +1518,7 @@ function loadSpec(s,src,promptText){
   resetGame(); draw();
   window.__newLevelUntil = Date.now()+3000;
   $("hud").textContent = "NEW LEVEL LOADED: "+spec.title+" · "+spec.engine+" · "+hudText();
-  $("game").scrollIntoView({behavior:"smooth", block:"center"});
+  if(!window.__booting) $("game").scrollIntoView({behavior:"smooth", block:"center"});
   showBest();
   console.log("[StarSprite] loaded:", src, spec.title, "hash", before, "->", specHash(spec));
 }
@@ -1953,8 +1953,9 @@ $("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
 $("mFire").onclick=shoot;let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
 let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
 // ---------- tabs ----------
-let tab=localStorage.getItem("ff_tab")||"make";function setTab(t){tab=t;localStorage.setItem("ff_tab",t);$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
+let tab="make";function setTab(t){tab=t;$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
 $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");setTab(tab);
+try{history.scrollRestoration="manual"}catch(e){}
 // ---------- feed / share / export ----------
 function renderFeed(){$("feed").innerHTML=feed.map((f,i)=>{let builtin=f.src==="demo"||(f.src||"").indexOf("builtin")===0;return `<div class="feedCard"><b>${f.title}</b><br><small>Prompt: ${f.prompt}<br>Engine: ${f.spec.engine} · ${f.when}</small><br><button onclick="playFeed(${i})">Play</button> <button onclick="copyFeed(${i})">Copy link</button> <button onclick="exportFeed(${i})">Export</button>${builtin?" <small>Built-in</small>":' <button onclick="deleteFeed('+i+')">Delete</button>'}</div>`}).join("")||"No levels yet."}
 function specHash(s){let m=s.map.map(r=>Array.isArray(r)?r.join(""):r);return btoa(unescape(encodeURIComponent(s.title+"|"+JSON.stringify(m)))).slice(0,80)}
@@ -3387,7 +3388,10 @@ $("generate").onclick = async ()=>{
 };
 $("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};$("shuffle").onclick=()=>{$("prompt").value=EXAMPLE_PROMPTS[Math.random()*EXAMPLE_PROMPTS.length|0]};
 // shared-link boot
+window.__booting = true;
 try{if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
+window.__booting = false;
+window.scrollTo(0, 0);
 // One demo only: clean old duplicates already saved in this browser.
 // Old v1 demo cards have a different map/hash than the v2 WOW demo, so
 // hash-only dedupe never removed them. Title dedupe collapses them.
