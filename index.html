@@ -2918,7 +2918,7 @@ function restoreFreeTex(){
     if(slot === "enemyByType") return;
     if(!entry || !entry.url) return;
     let img = new Image();
-    img.onload = ()=>{ if(spec!==mySpec) return; setFreeTexArt(slot, img); draw(); };
+    img.onload = ()=>{ if(spec!==mySpec) return; if(!spec.freeTex || spec.freeTex[slot] !== entry) return; setFreeTexArt(slot, img); draw(); };
     img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + slot + " did not load (needs internet). Keeping the current look."; };
     var freeSrc = resolveFreeTexURL(entry.url);
     if(!freeSrc) return;
@@ -2927,7 +2927,7 @@ function restoreFreeTex(){
   Object.entries(spec.freeTex.enemyByType || {}).forEach(([typeId, entry])=>{
     if(!entry || !entry.url) return;
     let img = new Image();
-    img.onload = ()=>{ if(spec!==mySpec) return; setFreeTexArtForType(typeId, img); draw(); };
+    img.onload = ()=>{ if(spec!==mySpec) return; if(!spec.freeTex || !spec.freeTex.enemyByType || spec.freeTex.enemyByType[typeId] !== entry) return; setFreeTexArtForType(typeId, img); draw(); };
     img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + typeId + " did not load (needs internet). Keeping the current look."; };
     var freeSrc = resolveFreeTexURL(entry.url);
     if(!freeSrc) return;
