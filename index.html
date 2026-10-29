@@ -424,6 +424,24 @@ function asRows(map){
   let w = Math.max(...rows.map(r=>r.length));
   return rows.map(r=>(r+"#".repeat(w)).slice(0,w).split(""));
 }
+
+// v51: BFS to the nearest walkable floor cell. repair() uses it so placements
+// on wall/door cells become playable instead of stuck inside walls.
+function nearestFloorCell(map, sx, sy){
+  let h = map.length, w = map[0].length;
+  let seen = new Set([sy * w + sx]);
+  let q = [[sx, sy]];
+  while(q.length){
+    let [x, y] = q.shift();
+    let c = map[y] && map[y][x];
+    if(c === ".") return {x, y};
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
+      let nx = x + d[0], ny = y + d[1];
+      if(nx >= 0 && nx < w && ny >= 0 && ny < h && !seen.has(ny * w + nx)){ seen.add(ny * w + nx); q.push([nx, ny]); }
+    });
+  }
+  return null;
+}
 function repair(s){
   s = JSON.parse(JSON.stringify(s||{}));
   let rows = asRows(s.map);
@@ -468,9 +486,28 @@ function repair(s){
   if(s.enemyTypes.length===0) throw new Error("No usable enemy types after filtering. Generation is invalid.");
   let typeIds=new Set(s.enemyTypes.map(t=>t.id));
   s.enemies=(Array.isArray(s.enemies)?s.enemies:[]).filter(e=>e&&isFinite(e.x)&&isFinite(e.y)&&typeIds.has(e.typeId)).slice(0,31).map(e=>({x:Math.max(1,Math.min(w-2,Math.floor(e.x))),y:Math.max(1,Math.min(h-2,Math.floor(e.y))),typeId:e.typeId,boss:!!e.boss}));
+
+  // v51: only open floor is a valid placement. Wall/door cells are stuck,
+  // occluded and unshootable; P/G cells spawn things on the player or the
+  // goal; out-of-bounds pickups (their line never clamps) are unreachable.
+  // Move each to the nearest floor cell; drop it only if the map has no
+  // floor at all.
+  let fixPlaced = (arr)=>arr.map(e=>{
+    let c = s.map[e.y] ? s.map[e.y][e.x] : undefined;
+    if(c !== "."){
+      let cx = Math.max(1, Math.min(w-2, Math.floor(e.x))), cy = Math.max(1, Math.min(h-2, Math.floor(e.y)));
+      let f = nearestFloorCell(s.map, cx, cy);
+      if(f) return {...e, x: f.x, y: f.y};
+      return null;
+    }
+    return e;
+  }).filter(Boolean);
+  s.enemies = fixPlaced(s.enemies);
   // No Boss Guard invention: if the provider did not include a boss, there is no boss.
   s.pickups=(Array.isArray(s.pickups)?s.pickups:[]).filter(e=>e&&isFinite(e.x)&&isFinite(e.y)).slice(0,20).map(e=>({x:Math.floor(e.x),y:Math.floor(e.y),kind:e.kind||"treat",name:(e.name||"").slice(0,40)}));
+  s.pickups = fixPlaced(s.pickups);
   s.npcs=(Array.isArray(s.npcs)?s.npcs:[]).slice(0,6).map((n,i)=>({id:n.id||"n"+i,name:(n.name||"Guide").slice(0,24),persona:(n.persona||"helpful local").slice(0,60),greeting:(n.greeting||"Well met, hero!").slice(0,140),dialogue:Array.isArray(n.dialogue)?n.dialogue.slice(0,20).map(d=>String(d).slice(0,200)):(n.greeting?[n.greeting]:[]),x:Math.max(1,Math.min(w-2,Math.floor(n.x||2))),y:Math.max(1,Math.min(h-2,Math.floor(n.y||2)))}));
+  s.npcs = fixPlaced(s.npcs);
   if(s.world){
     let wd=s.world;
     s.world={theme:String(wd.theme||"").slice(0,60),mood:String(wd.mood||"").slice(0,60),skyColor:hexOk(wd.skyColor)?wd.skyColor:"#08131f",floorColor:hexOk(wd.floorColor)?wd.floorColor:"#1b2533",wallColor:hexOk(wd.wallColor)?wd.wallColor:"#46617f",secondaryWallColor:hexOk(wd.secondaryWallColor)?wd.secondaryWallColor:"#2c435e",accentColor:hexOk(wd.accentColor)?wd.accentColor:"#62d8ff",wallDescription:String(wd.wallDescription||""),floorDescription:String(wd.floorDescription||""),skyDescription:String(wd.skyDescription||"")};
