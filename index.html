@@ -34,9 +34,9 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 
 <!-- PROVIDER ALWAYS VISIBLE -->
 <div class="card"><div class="row"><b>Provider:</b>
-<select id="provider" aria-label="Star Sprite (Free, offline) / Meta AI (Recommended) / Groq (Free backup)">
-<option value="star">Star Sprite (Free, offline)</option><option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option></select>
-<span>Star Sprite (Free, offline) / Meta AI (Recommended) / Groq (Free backup)</span>
+<select id="provider" aria-label="Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)">
+<option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option><option value="star">Star Sprite (Free, offline)</option></select>
+<span>Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)</span>
 <input id="apiKey" type="password" placeholder="API key — stored only in this browser" size="28">
 <button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
 <select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
@@ -605,7 +605,7 @@ async function llmProvider(prov, messages){
   if(!txt) throw new Error(prov.label+" returned an empty reply (not a network failure).");
   return txt;
 }
-$("provider").value=localStorage.getItem("ff_provider")||"star";
+$("provider").value=localStorage.getItem("ff_provider")||"meta";
 $("apiKey").value=localStorage.getItem(selectedProvider().keySlot)||"";
 $("saveKey").onclick=()=>{
   let p=selectedProvider();
