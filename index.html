@@ -336,7 +336,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
   <button id="shootBtn">SHOOT</button>
 </div>
 <div id="mobile"><div id="joy"><div id="knob"></div></div><div class="mbtn"><button id="mFire">FIRE</button><button id="mJump">JUMP</button><button id="mReload">RELOAD</button></div></div>
-<div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Reach the goal ★.</small></span></div>
+<div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Touch: drag the game to look, tap to fire, joystick moves. Reach the goal ★.</small></span></div>
 <div id="quest"></div><div id="best"></div></div>
 
 <div class="card"><h3>Show-your-work feed — prompt → spec → result</h3><div id="feed"></div></div>
@@ -1348,7 +1348,7 @@ function resetGame(){
   playing = true;
 }
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
-function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;
+function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;s+=mobile.x;
 if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
 else if(spec.engine==="top"){let dx=(keys.d?1:0)-(keys.a?1:0)+mobile.x,dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
 else{let dx=Math.cos(G.angle)*f - Math.sin(G.angle)*s, dy=Math.sin(G.angle)*f + Math.cos(G.angle)*s;
@@ -1725,7 +1725,35 @@ function loop(ts){
 }
 requestAnimationFrame(loop);
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")shoot();if(e.key.toLowerCase()==="r")G&&(G.ammo=30)});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
-cv.addEventListener("pointerdown",()=>{shoot();cv.requestPointerLock&&spec.engine==="fps"&&cv.requestPointerLock()});if(GLC)GLC.addEventListener("pointerdown",()=>{shoot();GLC.requestPointerLock&&spec.engine==="3d"&&GLC.requestPointerLock()});document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv||document.pointerLockElement===GLC)G.angle+=e.movementX*.003});
+let lookDrag = null;
+function lookStart(el, e){ lookDrag = { x: e.clientX, y: e.clientY, moved: false, el: el }; }
+function lookMove(e){
+  if(!lookDrag) return;
+  let dx = e.clientX - lookDrag.x, dy = e.clientY - lookDrag.y;
+  if(!lookDrag.moved && Math.hypot(dx, dy) > 10) lookDrag.moved = true;
+  if(lookDrag.moved && G && document.pointerLockElement !== lookDrag.el) G.angle += dx * 0.005;
+  lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+}
+function lookEnd(e){
+  if(!lookDrag) return;
+  let wasDrag = lookDrag.moved;
+  lookDrag = null;
+  if(!wasDrag && e.pointerType !== "mouse") shoot();
+}
+function bindLook(el, engine){
+  if(!el) return;
+  el.style.touchAction = "none";
+  el.addEventListener("pointerdown", e => {
+    lookStart(el, e);
+    if(e.pointerType === "mouse"){ shoot(); el.requestPointerLock && spec.engine === engine && el.requestPointerLock(); }
+  });
+  el.addEventListener("pointermove", lookMove);
+  el.addEventListener("pointerup", lookEnd);
+  el.addEventListener("pointercancel", () => { lookDrag = null; });
+}
+bindLook(cv, "fps");
+if(GLC) bindLook(GLC, "3d");
+document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv||document.pointerLockElement===GLC)G.angle+=e.movementX*.003});
 $("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
 $("mFire").onclick=shoot;let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
 let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
