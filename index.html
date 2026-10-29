@@ -45,7 +45,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <option value="mixer">Offline Mixer (free, no key, remixed from built-in packs + Poly Haven)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
-</div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
+</div><div class="card"><h3>MIDI Sound Generator</h3><p><small>Every game auto-plays its own title-seeded tune. Tweak the style and tempo here — games pick it up as they load.</small></p><div class="row"><label>Style <select id="musicStyle"><option value="cheerful">Cheerful</option><option value="adventure">Adventure</option><option value="spooky">Spooky</option><option value="chill">Chill</option><option value="retro">Retro</option></select></label><label>Tempo <input type="range" id="musicTempo" min="200" max="700" step="20" value="420"> <span id="musicTempoLabel">420 ms per note</span></label><button class="alt" id="musicPlay">Play preview</button><button class="alt" id="musicStop">Stop</button><button class="alt" id="musicSurprise">Surprise me</button></div><div id="musicStatus"><small></small></div></div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
 
 <div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b>Welcome to Star Sprite — first time here?</b><br>Star Sprite is an AI game-making engine: type a prompt, get a playable game.<br>1. Play the demo — click "Built-in demo map". No key needed.<br>2. Build a game with no key — Advanced tab, then Offline Game Maker. Pick a theme and build.<br>3. Edit by hand — Advanced tab, then Hand Editor.<br>4. With a key — Make game tab: type a prompt, pick an engine, click Generate. Meta Wonder or Groq, your choice.<br><button onclick="closeTour()" style="margin-top:8px">Close</button></div>
 
@@ -338,7 +338,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 </div>
 <div id="mobile"><div id="joy"><div id="knob"></div></div><div class="mbtn"><button id="mFire">FIRE</button><button id="mJump">JUMP</button><button id="mReload">RELOAD</button></div></div>
 <div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Touch: drag the game to look, tap to fire, joystick moves. Reach the goal ★.</small></span></div>
-<div id="quest"></div><div id="best"></div></div>
+<div id="quest"></div><div id="best"></div><div id="scoreboard"></div></div>
 
 <div class="card"><h3>Show-your-work feed — prompt → spec → result</h3><div id="feed"></div></div>
 </div>
@@ -508,6 +508,12 @@ function repair(s){
   s.pickups = fixPlaced(s.pickups);
   s.npcs=(Array.isArray(s.npcs)?s.npcs:[]).slice(0,6).map((n,i)=>({id:n.id||"n"+i,name:(n.name||"Guide").slice(0,24),persona:(n.persona||"helpful local").slice(0,60),greeting:(n.greeting||"Well met, hero!").slice(0,140),dialogue:Array.isArray(n.dialogue)?n.dialogue.slice(0,20).map(d=>String(d).slice(0,200)):(n.greeting?[n.greeting]:[]),x:Math.max(1,Math.min(w-2,Math.floor(n.x||2))),y:Math.max(1,Math.min(h-2,Math.floor(n.y||2)))}));
   s.npcs = fixPlaced(s.npcs);
+  // v59: every game gets health pickups — if the spec has no pickup
+  // that restores HP, seed 3 health packs on random floor cells.
+  if(!(s.pickups||[]).some(p=>p.kind!=="ammo")){
+    let floors=[]; s.map.forEach((r,y)=>r.forEach((c,x)=>{ if(c===".") floors.push({x,y}); }));
+    for(let k=0;k<3 && floors.length;k++){ let c=floors.splice(Math.floor(Math.random()*floors.length),1)[0]; s.pickups.push({x:c.x,y:c.y,kind:"health",name:"Health Pack"}); }
+  }
   if(s.world){
     let wd=s.world;
     s.world={theme:String(wd.theme||"").slice(0,60),mood:String(wd.mood||"").slice(0,60),skyColor:hexOk(wd.skyColor)?wd.skyColor:"#08131f",floorColor:hexOk(wd.floorColor)?wd.floorColor:"#1b2533",wallColor:hexOk(wd.wallColor)?wd.wallColor:"#46617f",secondaryWallColor:hexOk(wd.secondaryWallColor)?wd.secondaryWallColor:"#2c435e",accentColor:hexOk(wd.accentColor)?wd.accentColor:"#62d8ff",wallDescription:String(wd.wallDescription||""),floorDescription:String(wd.floorDescription||""),skyDescription:String(wd.skyDescription||"")};
@@ -950,8 +956,56 @@ Return the complete manifest:
 }
 // ---------- art / audio ----------
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
-let musicTimer=null;function startMusic(){if(musicTimer)return;let scales=[[523,587,659,784],[220,261,293,329],[392,440,523,587],[196,220,261,293],[587,659,784,880]];let i=0;musicTimer=setInterval(()=>{if($("musicOn").checked&&playing){let h=0;for(let ch of (spec?.title||""))h=(h*31+ch.charCodeAt(0))%997;let sc=scales[h%scales.length];beep(sc[i%4],.25,"triangle");if(i%2==0)beep(sc[0]/2,.3,"sine");i++}},420)}
-document.addEventListener("pointerdown",()=>startMusic(),{once:true});
+let musicTimer=null;let musicPreview=false;
+let MUSIC_STYLES={cheerful:{scale:[523,587,659,784],wave:"triangle"},adventure:{scale:[392,440,523,587],wave:"square"},spooky:{scale:[196,220,261,293],wave:"sine"},chill:{scale:[220,261,293,329],wave:"sine"},retro:{scale:[587,659,784,880],wave:"square"}};
+let musicStyle=localStorage.getItem("ff_music_style")||"cheerful";
+let musicTempo=+(localStorage.getItem("ff_music_tempo")||420);
+let musicSalt=+(localStorage.getItem("ff_music_salt")||0);
+let musicPattern=null, musicStep=0;
+function musicRng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function genMusicPattern(){
+  let st=MUSIC_STYLES[musicStyle]||MUSIC_STYLES.cheerful;
+  let h=0; for(let ch of (spec?.title||"")) h=(h*31+ch.charCodeAt(0))%997;
+  let styleNames=Object.keys(MUSIC_STYLES);
+  let rng=musicRng((h+musicSalt*7919+styleNames.indexOf(musicStyle)*131)>>>0);
+  let mel=[], bass=[];
+  for(let i=0;i<16;i++){ let r=rng(); mel.push(r<0.3?0:st.scale[Math.floor(rng()*st.scale.length)]*(rng()<0.15?2:1)); bass.push(i%4===0?st.scale[0]/2:0); }
+  return {title:spec?.title||"", mel:mel, bass:bass, wave:st.wave, style:musicStyle};
+}
+function startMusic(){
+  if(musicTimer) return;
+  if(!musicPattern) musicPattern=genMusicPattern();
+  musicStep=0;
+  musicTimer=setInterval(()=>{
+    if($("musicOn").checked&&(playing||musicPreview)){
+      if(!musicPattern||musicPattern.title!==(spec?.title||"")) musicPattern=genMusicPattern();
+      let p=musicPattern;
+      if(p.mel[musicStep]) beep(p.mel[musicStep],.25,p.wave);
+      if(p.bass[musicStep]) beep(p.bass[musicStep],.3,"sine");
+    }
+    musicStep=(musicStep+1)%16;
+  }, musicTempo);
+}
+function stopMusic(){ if(musicTimer){ clearInterval(musicTimer); musicTimer=null; } }
+function refreshMusic(){
+  let was=!!musicTimer;
+  stopMusic();
+  musicPattern=genMusicPattern();
+  if(was) startMusic();
+  let st=$("musicStatus"); if(st) st.textContent="Now generating: "+musicStyle+" · "+musicTempo+" ms per note"+(musicSalt?" · surprise seed "+musicSalt:" · title seed");
+}
+(function initMusicCard(){
+  let s=$("musicStyle"), t=$("musicTempo"), tl=$("musicTempoLabel");
+  if(!s) return;
+  s.value=musicStyle; t.value=musicTempo; if(tl) tl.textContent=musicTempo+" ms per note";
+  s.onchange=()=>{ musicStyle=s.value; localStorage.setItem("ff_music_style",musicStyle); refreshMusic(); };
+  t.oninput=()=>{ musicTempo=+t.value; localStorage.setItem("ff_music_tempo",musicTempo); if(tl) tl.textContent=musicTempo+" ms per note"; refreshMusic(); };
+  let pp=$("musicPlay"); if(pp) pp.onclick=()=>{ musicPreview=true; startMusic(); };
+  let ps=$("musicStop"); if(ps) ps.onclick=()=>{ musicPreview=false; stopMusic(); };
+  let sm=$("musicSurprise"); if(sm) sm.onclick=()=>{ musicSalt=Math.floor(Math.random()*9999)+1; localStorage.setItem("ff_music_salt",musicSalt); refreshMusic(); };
+  refreshMusic();
+})();
+document.addEventListener("pointerdown",()=>startMusic());
 
 // ---------- PSX kawaii textures + pixel sprites (v3, no emoji characters) ----------
 const BUF=document.createElement("canvas");BUF.width=320;BUF.height=180;
@@ -1547,7 +1601,7 @@ function resetGame(){
   let all = (spec.enemies || []).map(e => {let t=enemyTypeFor(e)||{}; return {...e, alive:true, pat:Math.random()*6.28, sx:e.x, sy:e.y, hp:t.hp||3, speed:t.speed||0.55, damage:t.damage||10, size:t.size||1};});
   G = {
     px:p.x+.5, py:p.y+.5, vx:0, vy:0, angle:0,
-    hp:(spec.player&&spec.player.hp)||100, ammo:((spec.weapon&&spec.weapon.ammo!=null)?spec.weapon.ammo:30), kills:0, deaths:0,
+    hp:(spec.player&&spec.player.hp)||100, ammo:((spec.weapon&&spec.weapon.ammo!=null)?spec.weapon.ammo:30), kills:0, score:0, deaths:0,
     start:Date.now(), onGround:false, won:false,
     enemies: all,
     active: all.slice(0,3),
@@ -1563,9 +1617,9 @@ else if(spec.engine==="top"){let dx=(keys.d?1:0)-(keys.a?1:0)+mobile.x,dy=(keys.
 else{let dx=Math.cos(G.angle)*f - Math.sin(G.angle)*s, dy=Math.sin(G.angle)*f + Math.cos(G.angle)*s;
 let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
 G.active.forEach(e=>{if(!e.alive)return;e.pat+=dt;let d=Math.hypot(G.px-e.x,G.py-e.y);let tx=e.x,ty=e.y;if(d<5){tx=G.px;ty=G.py}else{tx=e.x+Math.cos(e.pat)*.6;ty=e.y+Math.sin(e.pat)*.6}
-let _t=enemyTypeFor(e)||{}; if(_t.role==="stationary"){if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}} return;} if(_t.behavior==="chase"){tx=G.px;ty=G.py;} else if(_t.behavior==="guard"){let sx0=(e.sx!=null?e.sx:e.x), sy0=(e.sy!=null?e.sy:e.y);let sd=Math.hypot(e.x-sx0,e.y-sy0);if(d<5&&sd<=3){tx=G.px;ty=G.py;}else if(sd>0.5){tx=sx0;ty=sy0;}else{tx=e.x;ty=e.y;}} let sp2=(e.speed||.55)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5}}});
+let _t=enemyTypeFor(e)||{}; if(_t.role==="stationary"){if(d<.6){if(!G._hurtT||Date.now()-G._hurtT>400){G._hurtT=Date.now();beep(110,.15,"sawtooth");}G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5;beep(300,.12);setTimeout(()=>beep(150,.2),130);}} return;} if(_t.behavior==="chase"){tx=G.px;ty=G.py;} else if(_t.behavior==="guard"){let sx0=(e.sx!=null?e.sx:e.x), sy0=(e.sy!=null?e.sy:e.y);let sd=Math.hypot(e.x-sx0,e.y-sy0);if(d<5&&sd<=3){tx=G.px;ty=G.py;}else if(sd>0.5){tx=sx0;ty=sy0;}else{tx=e.x;ty=e.y;}} let sp2=(e.speed||.55)*dt*(spec.difficulty==="Hard"?1.4:spec.difficulty==="Insane"?1.8:1);let nx=e.x+Math.sign(tx-e.x)*sp2,ny=e.y+Math.sign(ty-e.y)*sp2;if(!wall(nx,e.y))e.x=nx;if(!wall(e.x,ny))e.y=ny;if(d<.6){if(!G._hurtT||Date.now()-G._hurtT>400){G._hurtT=Date.now();beep(110,.15,"sawtooth");}G.hp-=(e.damage||10)*dt;if(G.hp<=0){G.deaths=(G.deaths||0)+1;G.hp=(spec.player&&spec.player.hp)||100;G.px=spec.playerStart.x+.5;G.py=spec.playerStart.y+.5;beep(300,.12);setTimeout(()=>beep(150,.2),130);}}});
 G.pickups.forEach(p=>{if(!p.taken&&Math.hypot(G.px-p.x-.5,G.py-p.y-.5)<.7){p.taken=true;let maxHp=(spec.player&&spec.player.hp)||100;if(p.kind==="health"){G.hp=Math.min(maxHp,G.hp+20);}else if(p.kind==="ammo"){G.ammo+=10;}else{G.hp=Math.min(maxHp,G.hp+20);G.ammo+=10;}beep(880,.1)}});
-if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest();
+if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won=true;playing=false;let t=((Date.now()-G.start)/1000).toFixed(1);G.score=(G.score||0)+500;$("hud").textContent=`★ You win! ${t}s · Kills ${G.kills} · Score ${G.score}`;let k="ff_best_"+spec.title,b=JSON.parse(localStorage.getItem(k)||"null");if(!b||t<b.time)localStorage.setItem(k,JSON.stringify({time:+t,kills:G.kills}));showBest();let ks="ff_best_score_"+spec.title,bs=JSON.parse(localStorage.getItem(ks)||"null");if(!bs||G.score>bs.score)localStorage.setItem(ks,JSON.stringify({score:G.score,kills:G.kills}));[523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.18,"triangle"),i*140));updateScoreboard();
   if(offlineCampaign && offlineLevelNo < offlineCampaign.total){
     offlineLevelNo++;
     setTimeout(() => {
@@ -1587,7 +1641,7 @@ function hasLOS(x1, y1, x2, y2){
   }
   return true;
 }
-function shoot(){if(!playing||G.ammo<=0)return;let now=Date.now();if(now-(G.lastShot||0)<(spec.weapon?.fireRate||260))return;G.lastShot=now;G.ammo--;lastShotAt=Date.now();beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;if(!hasLOS(G.px,G.py,e.x,e.y))return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp -= (spec.weapon && spec.weapon.damage) || 1;if(best.hp<=0){best.alive=false;G.kills++;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
+function shoot(){if(!playing||G.ammo<=0)return;let now=Date.now();if(now-(G.lastShot||0)<(spec.weapon?.fireRate||260))return;G.lastShot=now;G.ammo--;lastShotAt=Date.now();beep(180,.06,"sawtooth");let best=null,bd=9;G.active.forEach(e=>{if(!e.alive)return;if(!hasLOS(G.px,G.py,e.x,e.y))return;let d=Math.hypot(G.px-e.x,G.py-e.y);if(spec.engine==="side"||spec.engine==="top"){if(d<bd){bd=d;best=e}}else{let a=Math.atan2(e.y-G.py,e.x-G.px),diff=Math.abs(((a-G.angle+Math.PI*3)%(Math.PI*2))-Math.PI);if(d<bd&&diff<.25){bd=d;best=e}}});if(best){best.hp -= (spec.weapon && spec.weapon.damage) || 1;if(best.hp<=0){best.alive=false;G.kills++;G.score=(G.score||0)+100;let n=G.queue.shift();if(n)G.active.push(n);beep(980,.15)}beep(700,.05)}}
 function showBest(){let b=localStorage.getItem("ff_best_"+(spec?.title||""));$("best").textContent=b?"Local best: "+b:"No local best yet for this level."}
 // ---------- renderers ----------
 let cv=$("game"),ctx=cv.getContext("2d");
@@ -1611,7 +1665,8 @@ function draw(){
   if(spec.engine==="fps")drawFPS(); else if(spec.engine==="top")drawTop(); else drawSide();
   if(!(G && G.won)) $("hud").textContent=hudLine();
 }
-function hudText(){return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
+function updateScoreboard(){let _sb=$("scoreboard");if(!_sb||!spec||!G)return;let _bs=JSON.parse(localStorage.getItem("ff_best_score_"+(spec.title||""))||"null"),_bt=JSON.parse(localStorage.getItem("ff_best_"+(spec.title||""))||"null");_sb.textContent="Scoreboard · Score "+(G.score||0)+" · Kills "+G.kills+" · Best score "+(_bs?_bs.score:"—")+" · Best time "+(_bt?_bt.time+"s":"—");}
+function hudText(){updateScoreboard();return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Score ${(G.score||0)} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
 function colors(){return worldColors().wall}
 function texPixels(img){
   if(img._px) return img._px;
@@ -1786,6 +1841,15 @@ function drawSpriteOccluded(B, img, wx, wy, size, label){
   }
   return {vis:vis, left:left, top:top, s:s};
 }
+let _pickupIcons={};
+function pickupIcon(kind){
+  if(_pickupIcons[kind]) return _pickupIcons[kind];
+  let c=document.createElement("canvas"); c.width=c.height=64; let x=c.getContext("2d");
+  if(kind==="ammo"){ x.fillStyle="#ffe45e"; x.fillRect(22,8,20,48); x.fillStyle="#7a5b00"; x.fillRect(22,8,20,10); }
+  else if(kind==="health"){ x.fillStyle="#3dff7a"; x.fillRect(26,6,12,52); x.fillRect(6,26,52,12); }
+  else { x.fillStyle="#ff7ab6"; x.beginPath(); x.arc(32,32,26,0,7); x.fill(); x.fillStyle="#fff"; x.font="28px serif"; x.fillText("★",20,42); }
+  _pickupIcons[kind]=c; return c;
+}
 function drawSpritesPSX(B,w,h){
   let list=[...G.active.filter(e=>e.alive).map(e=>({t:"e",o:e,d:Math.hypot(e.x-G.px,e.y-G.py)})),
             ...spec.npcs.map(n=>({t:"n",o:n,d:Math.hypot(n.x-G.px,n.y-G.py)}))].sort((a,b)=>b.d-a.d);
@@ -1800,12 +1864,13 @@ function drawSpritesPSX(B,w,h){
     }
     else drawSpriteOccluded(B,spriteForNPC(o),o.x,o.y,0.8,o.name);
   });
+  (G.pickups||[]).forEach(p=>{ if(!p.taken) drawSpriteOccluded(B,pickupIcon(p.kind),p.x+.5,p.y+.5,0.6,""); });
   drawPropsBillboard(B,w,h);
   spec.npcs.forEach(n=>{let d=Math.hypot(n.x-G.px,n.y-G.py);if(d<1.4)$("npcLog").textContent=n.name+": "+n.greeting+" (press Talk below)"});
 }
 function drawTop(){let _wc=worldColors();ctx.fillStyle=_wc.floorColor;ctx.fillRect(0,0,cv.width,cv.height);let tw=cv.width/spec.map[0].length,th=cv.height/spec.map.length;spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D")return;ctx.fillStyle=c==="G"?"#ffe45e":_wc.floorColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}));
 G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle="#ffe45e";ctx.font=th+"px serif";ctx.fillText("★",p.x*tw,p.y*th+th)}});G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*tw,e.y*th,tw,th)}});spec.npcs.forEach(n=>ctx.drawImage(spriteForNPC(n),n.x*tw,n.y*th,tw,th));(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*tw,p.y*th,tw,th)});ctx.drawImage(playerSpriteStyled(),G.px*tw-8,G.py*th,tw,th);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"||c==="D"){if(ART.wall){ctx.drawImage(ART.wall,x*tw,y*th,tw,th)}else{ctx.fillStyle=c==="#"?colors():_wc.secondaryWallColor;ctx.fillRect(x*tw,y*th,tw-1,th-1)}}}));}
-function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}}));}
+function drawSide(){ctx.fillStyle=worldColors().skyColor;ctx.fillRect(0,0,cv.width,cv.height);let ts=42,cam=Math.max(0,(G.px*ts-cv.width/2));spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="G")ctx.fillText("★",x*ts-cam,y*ts+30)}));G.pickups.forEach(p=>{if(!p.taken){ctx.fillStyle=p.kind==="ammo"?"#ffe45e":"#3dff7a";ctx.font=ts+"px serif";ctx.fillText("★",p.x*ts-cam,p.y*ts+30)}});let bob=Math.sin(Date.now()/200)*3;G.active.forEach(e=>{if(e.alive){ctx.drawImage(spriteFor(e),e.x*ts-cam,e.y*ts+bob,ts,ts)}});(spec.props||[]).forEach(p=>{let m=MODELS[p.model];let img=m&&m.texture?m.texture:ART.wall;ctx.drawImage(img,p.x*ts-cam,p.y*ts,ts,ts)});ctx.drawImage(playerSpriteStyled(),G.px*ts-cam,G.py*ts,ts,ts);spec.map.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==="#"){if(ART.wall){ctx.drawImage(ART.wall,x*ts-cam,y*ts,ts,ts)}else{ctx.fillStyle=colors();ctx.fillRect(x*ts-cam,y*ts,ts-1,ts-1)}}}));}
 // True 3D — separate WebGL canvas, raw WebGL, no libraries
 let GLC=$("gameGL"), gl=null, prog=null, glReady=false, glFailed="", uM, uC, aP, cubeBuf, uT, uUse, aT, wallGLTex=null, wallGLTexFor=null;
 function initGL(){
