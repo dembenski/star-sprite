@@ -205,8 +205,8 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <h4>World &amp; Map</h4>
 <div class="row">
 <label>Engine <select id="offEngine"><option value="fps">FPS 2.5D</option><option value="top">Top-view</option><option value="side">Side-scroll</option><option value="3d">True 3D</option></select></label>
-<label>Theme pack <select id="offTheme"><option>Space Station</option><option>Dark Dungeon</option><option>Haunted Manor</option><option>Pirate Ship</option><option>Wild West Town</option><option>Neon City</option><option>Toy Blocks</option><option>Candy Demo Style</option><option>Custom (my textures)</option></select></label>
-<label>Map layout <select id="offLayout"><option value="editor">Use Layout Editor map</option><option value="rooms" selected>Rooms &amp; corridors</option><option value="maze">Maze</option><option value="arena">Boss arena</option><option value="islands">Open islands</option><option value="random">Random ruins</option></select></label>
+<label>Theme pack <select id="offTheme"><option>Space Station</option><option>Dark Dungeon</option><option>Haunted Manor</option><option>Pirate Ship</option><option>Wild West Town</option><option>Neon City</option><option>Toy Blocks</option><option>Candy Demo Style</option><option>Custom (my textures)</option><option>Frozen Tundra</option><option>Volcano Core</option><option>Sunken Temple</option><option>Sky Fortress</option><option>Graveyard Shift</option></select></label>
+<label>Map layout <select id="offLayout"><option value="editor">Use Layout Editor map</option><option value="rooms" selected>Rooms &amp; corridors</option><option value="maze">Maze</option><option value="arena">Boss arena</option><option value="islands">Open islands</option><option value="random">Random ruins</option><option value="pillars">Pillar field</option><option value="rings">Ring fortress</option></select></label>
 <label>Map size <select id="offSize"><option value="14x10">Small 14×10</option><option value="18x13" selected>Medium 18×13</option><option value="24x16">Large 24×16</option><option value="30x20">Huge 30×20</option></select></label>
 <label>Wall density <select id="offDensity"><option value="0.08">Open</option><option value="0.16" selected>Normal</option><option value="0.26">Cluttered</option><option value="0.36">Maze-like</option></select></label>
 <label>Levels (campaign) <select id="offLevels"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>8</option></select></label>
@@ -263,6 +263,11 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <div class="row">
 <button id="offBuild" style="background:#37e0ff;color:#10202e">Build &amp; Play Offline Game</button>
 <button class="alt" id="offBuildFeed">Build &amp; Save To Feed</button>
+</div>
+<div class="row">
+<button class="alt" id="offPresetSave">Save my setup</button>
+<button class="alt" id="offPresetLoad">Load my setup</button>
+<button class="alt" id="offRandom">Surprise me</button>
 </div>
 <div id="offStatus"><small>Pick options, then Build. Use Layout Editor map = your hand-drawn map becomes the game.</small></div>
 </div>
@@ -2620,7 +2625,12 @@ const OFF_THEMES = {
  "Neon City":{sky:"#0a0a18",wall:"#2a2d3f",wall2:"#3a3f5c",floor:"#14161f",accent:"#ff3860",foes:["Street Punk","Neon Drone","Chrome Brute"],gun:"Neon"},
  "Toy Blocks":{sky:"#87ceeb",wall:"#ffcf3f",wall2:"#3fa7ff",floor:"#2e8b57",accent:"#ff2f86",foes:["Wind-up Bot","Block Bear","Balloon Imp"],gun:"Bubble"},
  "Candy Demo Style":{sky:"#2a1745",wall:"#ff7ab6",wall2:"#ffa4c8",floor:"#6b3550",accent:"#ff2f86",foes:["Sprinkle Imp","Custard Blob","Mint Wraith"],gun:"Sugar"},
- "Custom (my textures)":{sky:"#101018",wall:"#555a6e",wall2:"#3a3f52",floor:"#1a1c26",accent:"#ffd84d",foes:["Guardian One","Guardian Two","Guardian Three"],gun:"Custom"}
+ "Custom (my textures)":{sky:"#101018",wall:"#555a6e",wall2:"#3a3f52",floor:"#1a1c26",accent:"#ffd84d",foes:["Guardian One","Guardian Two","Guardian Three"],gun:"Custom"},
+ "Frozen Tundra":{sky:"#0a1420",wall:"#7fa8c9",wall2:"#a8c8e0",floor:"#dfe9f2",accent:"#37e0ff",foes:["Frost Wraith","Ice Golem","Snow Imp"],gun:"Frost"},
+ "Volcano Core":{sky:"#1a0800",wall:"#5a1f0f",wall2:"#8a2f14",floor:"#2a120a",accent:"#ff6a2a",foes:["Cinder Imp","Magma Golem","Ash Wraith"],gun:"Magma"},
+ "Sunken Temple":{sky:"#04120e",wall:"#3f6b4f",wall2:"#527d5f",floor:"#0e241a",accent:"#7dffb0",foes:["Temple Guardian","Moss Golem","Deep Bat"],gun:"Relic"},
+ "Sky Fortress":{sky:"#87ceeb",wall:"#c8d4e0",wall2:"#e0e8f0",floor:"#5a7a9a",accent:"#ffd84d",foes:["Storm Knight","Cloud Drone","Gale Wraith"],gun:"Storm"},
+ "Graveyard Shift":{sky:"#0a0a12",wall:"#4a4a5a",wall2:"#5a5a6e",floor:"#14141f",accent:"#b6ffce",foes:["Grave Ghoul","Bone Brute","Night Bat"],gun:"Grave"}
 };
 const OFF_GUNS = {blaster:{name:"Blaster",cross:"◎"},rifle:{name:"Rifle",cross:"+"},smg:{name:"SMG",cross:"+"},
                   shotgun:{name:"Scatter Gun",cross:"✦"},crossbow:{name:"Crossbow",cross:"◆"},cannon:{name:"Cannon",cross:"◎"}};
@@ -2643,6 +2653,26 @@ function offMap(w, h, layout, density){
       let rw=3+Math.random()*4|0, rh=2+Math.random()*3|0, rx=1+Math.random()*(w-rw-2)|0, ry=1+Math.random()*(h-rh-2)|0;
       for(let y=0;y<rh;y++)for(let x=0;x<rw;x++) m[ry+y][rx+x]="#";
       m[ry+(rh>>1)][rx+(rw>>1)]=".";
+    }
+  } else if(layout === "pillars"){
+    let placed = [];
+    for(let i=0;i<Math.floor(w*h/40);i++){
+      let px=2+Math.random()*(w-5)|0, py=2+Math.random()*(h-5)|0;
+      if(px+1>w-3 || py+1>h-3) continue;
+      if(placed.some(o => Math.abs(o.x-px)<=2 && Math.abs(o.y-py)<=2)) continue;
+      placed.push({x:px, y:py});
+      for(let y=0;y<2;y++)for(let x=0;x<2;x++) m[py+y][px+x]="#";
+    }
+  } else if(layout === "rings"){
+    let inset=2, side=0;
+    while(inset < Math.floor(Math.min(w,h)/2)-1){
+      for(let x=inset;x<w-inset;x++){ m[inset][x]="#"; m[h-1-inset][x]="#"; }
+      for(let y=inset;y<h-inset;y++){ m[y][inset]="#"; m[y][w-1-inset]="#"; }
+      if(side%4===0) m[inset][Math.floor(w/2)]=".";
+      else if(side%4===1) m[h-1-inset][Math.floor(w/2)]=".";
+      else if(side%4===2) m[Math.floor(h/2)][inset]=".";
+      else m[Math.floor(h/2)][w-1-inset]=".";
+      inset+=2; side++;
     }
   } else {
     let n = Math.floor(w*h*density);
@@ -2674,7 +2704,7 @@ function buildOfflineLevel(levelNo){
             damage:+$("offGunDmg").value, fireRate:+$("offFireRate").value, ammo:+$("offAmmo").value,
             description:theme.gun + " " + gun.name},
     player:{hp:+$("offPHP").value, speed:+$("offPSpeed").value},
-    enemyTypes: foes.map((n,i)=>({id:"e"+i, name:n, hp:+$("offEHP").value, speed:+$("offESpeed").value,
+    enemyTypes: foes.map((n,i)=>({id:"e"+i, name:n, hp:Math.min(30, +$("offEHP").value + Math.floor((levelNo-1)/2)), speed:Math.min(2, +$("offESpeed").value * (1 + (levelNo-1)*0.1)),
       damage:+$("offEDmg").value, behavior:$("offEBehave").value==="mixed" ? ["chase","patrol","guard"][i%3] : $("offEBehave").value,
       size:1, primaryColor:theme.accent, secondaryColor:theme.wall, darkColor:"#14101f", eyeColor:"#fff",
       pixelPalette:{K:"#14101f", B:theme.wall2, A:theme.accent, W:"#ffffff", E:"#14101f"},
@@ -2689,8 +2719,9 @@ function buildOfflineLevel(levelNo){
   for(let i=0;i<count;i++){ let c=take(); s.enemies.push({x:c.x, y:c.y, typeId:"e"+(i%species)}); }
   let bossEvery = +$("offBoss").value;
   if(bossEvery===99 || (bossEvery===1 && levelNo===+$("offLevels").value) || (bossEvery===2 && levelNo%2===0)){
-    let g = {x:w-2, y:h-2}; s.enemies.push({x:Math.max(1,g.x-1), y:g.y, typeId:"e0", boss:true});
-    s.enemyTypes[0] = {...s.enemyTypes[0], size:1.8};
+    let g = {x:w-2, y:h-2};
+    s.enemyTypes.push({id:"boss", name:foes[0]+" Boss", hp:Math.min(30, (+$("offEHP").value + Math.floor((levelNo-1)/2))*3), speed:Math.min(2, +$("offESpeed").value * (1 + (levelNo-1)*0.1)), damage:+$("offEDmg").value, behavior:"chase", size:1.8, primaryColor:theme.accent, secondaryColor:theme.wall, darkColor:"#14101f", eyeColor:"#fff", pixelPalette:{K:"#14101f", B:theme.wall2, A:theme.accent, W:"#ffffff", E:"#14101f"}, pixelRows:["..KKKKKK..",".KBBBBBBK.","KBWWKKWWBK","KBWEKKWEBK","KBBBBBBBBK","KBAAAAAABK",".KBBBBBBK.","..KKKKKK.."]});
+    s.enemies.push({x:Math.max(1,g.x-1), y:g.y, typeId:"boss", boss:true});
   }
   for(let i=0;i<+$("offHealth").value;i++){ let c=take(); s.pickups.push({x:c.x,y:c.y,kind:"health",name:"Health Pack"}); }
   for(let i=0;i<+$("offAmmoP").value;i++){ let c=take(); s.pickups.push({x:c.x,y:c.y,kind:"ammo",name:"Ammo Box"}); }
@@ -2762,6 +2793,30 @@ if($("imgAddLib")) $("imgAddLib").onclick = () => {
 if($("paintAddLib")) $("paintAddLib").onclick = () => {
   let pc = $("paintCanvas"); if(!pc) return;
   texLibAdd("Painted texture", "Painted", pc.toDataURL());
+};
+function offPresetData(){
+  let d = {};
+  document.querySelectorAll('select[id^="off"], input[id="offTitle"]').forEach(el => { d[el.id] = el.value; });
+  return d;
+}
+$("offPresetSave").onclick = () => {
+  try{ localStorage.setItem("ff_offPreset", JSON.stringify(offPresetData())); }catch(e){}
+  $("offStatus").innerHTML = '<span class="ok">Setup saved. Load my setup restores it any time.</span>';
+};
+$("offPresetLoad").onclick = () => {
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem("ff_offPreset") || "null"); }catch(e){ d = null; }
+  if(!d) return alert("No saved setup yet - set your options, then Save my setup.");
+  Object.keys(d).forEach(id => { let el = $(id); if(el) el.value = d[id]; });
+  refreshTextureSelects();
+  $("offStatus").innerHTML = '<span class="ok">Saved setup loaded. Hit Build &amp; Play.</span>';
+};
+$("offRandom").onclick = () => {
+  document.querySelectorAll('select[id^="off"]').forEach(el => {
+    if(el.options.length) el.selectedIndex = Math.floor(Math.random()*el.options.length);
+  });
+  $("offTitle").value = "";
+  $("offStatus").innerHTML = '<span class="ok">Randomized! Hit Build &amp; Play.</span>';
 };
 refreshTextureSelects();
 
