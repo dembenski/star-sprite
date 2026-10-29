@@ -34,15 +34,15 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 
 <!-- PROVIDER ALWAYS VISIBLE -->
 <div class="card"><div class="row"><b>Provider:</b>
-<select id="provider" aria-label="Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)">
-<option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option><option value="star">Star Sprite (Free, offline)</option></select>
-<span>Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)</span>
+<select id="provider" aria-label="Star Sprite (Free, offline) / Meta AI (Recommended) / Groq (Free backup)">
+<option value="star">Star Sprite (Free, offline)</option><option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option></select>
+<span>Star Sprite (Free, offline) / Meta AI (Recommended) / Groq (Free backup)</span>
 <input id="apiKey" type="password" placeholder="API key — stored only in this browser" size="28">
 <button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
 <select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
 <option value="mixed">Mixed (Meta wall image, needs Meta key, ~$0.01/level)</option>
 <option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC + weapon, needs Meta key, ~$0.07/level)</option>
-<option value="mixer">Offline Mixer (free, no key, remixed from built-in packs)</option></select>
+<option value="mixer">Offline Mixer (free, no key, remixed from built-in packs + Poly Haven)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
@@ -561,6 +561,7 @@ function validateManifestAI(s){
     let w0=String(t.pixelRows[0]).length;
     if(!t.pixelRows.every(r=>String(r).length===w0)) return "enemyType "+t.name+" pixelRows are not all the same length";
     if(!t.pixelPalette || typeof t.pixelPalette!=="object") return "enemyType "+t.name+" has no pixelPalette";
+    if(!t.pixelRows.some(r=>[...String(r)].some(ch=>ch!=="." && ch!==" "))) return "enemyType "+t.name+" has no filled pixels";
   }
   if(!Array.isArray(s.map) || s.map.length<10 || s.map.length>14) return "map must be 10-14 rows";
   let rowLen = r=>Array.isArray(r) ? r.length : String(r).length;
@@ -604,7 +605,7 @@ async function llmProvider(prov, messages){
   if(!txt) throw new Error(prov.label+" returned an empty reply (not a network failure).");
   return txt;
 }
-$("provider").value=localStorage.getItem("ff_provider")||"meta";
+$("provider").value=localStorage.getItem("ff_provider")||"star";
 $("apiKey").value=localStorage.getItem(selectedProvider().keySlot)||"";
 $("saveKey").onclick=()=>{
   let p=selectedProvider();
@@ -994,13 +995,16 @@ function spriteFromPixelRows(enemyType, frame){
   let c = document.createElement("canvas"); c.width = w * scale; c.height = h * scale;
   let x = c.getContext("2d");
   let bob = frame ? 1 : 0;
+  let filled = false;
   rows.forEach((row, ry)=>{
     [...row].forEach((ch, rx)=>{
       if(ch==="." || ch===" ") return;
+      filled = true;
       x.fillStyle = palette[ch] || enemyType.primaryColor || "#ff00ff";
       x.fillRect(rx*scale, (ry+bob)*scale, scale, scale);
     });
   });
+  if(!filled){ x.fillStyle = enemyType.primaryColor || "#ff00ff"; x.fillRect(0, 0, c.width, c.height); }
   return c;
 }
 function buildArtPack(spec){
@@ -1121,7 +1125,12 @@ function chromaKey(img){
         if(near && dist(idx*4) < 150) alpha[idx] = 0;
       }
     }
-    for(let i=0;i<alpha.length;i++) if(!alpha[i]) p[i*4+3]=0;
+    let kept = 0; for(let i=0;i<alpha.length;i++) kept += alpha[i];
+    if(kept >= 0.05 * w * h){
+      for(let i=0;i<alpha.length;i++) if(!alpha[i]) p[i*4+3]=0;
+    }
+    // else: keying would have eaten the subject (pale sprite on a pale
+    // background) — leave the image unkeyed so the enemy stays visible.
   } else {
     // No solid background found: legacy fixed magenta thresholds.
     for(let i=0;i<p.length;i+=4){
@@ -1133,13 +1142,14 @@ function chromaKey(img){
   x.putImageData(d,0,0); return c;
 }
 
-// v49 Offline Mixer: breeds new textures/sprites from the embedded packs only
-// (Wonder + ambientCG + itch.io textures, monster sprites). No network, no key,
-// no provider calls. Seeded per game title, so the same title always mixes the
+// v49 Offline Mixer: breeds new textures/sprites from the built-in packs
+// (Wonder + ambientCG + itch.io + Poly Haven CDN textures, monster sprites).
+// No key, no provider calls — "offline" means no Groq/Meta access; pulling
+// CDN textures and sprites is fine. Seeded per game title, so the same title always mixes the
 // same art and a game's look stays consistent across reloads.
 function mixerSeed(str){ let h = 2166136261; for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function mixerRng(seed){ let a = seed >>> 0; return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function mixerLoad(im){ return new Promise(res=>{ if(!im){ res(null); return; } if(im.tagName === "CANVAS"){ res(im); return; } if(im.complete && im.naturalWidth){ res(im); return; } let done = ()=>res(im); im.onload = done; im.onerror = done; try{ if(im.decode) im.decode().then(done, done); }catch(e){} }); }
+function mixerLoad(im){ return new Promise(res=>{ if(!im){ res(null); return; } if(im.tagName === "CANVAS"){ res(im); return; } if(im.complete && im.naturalWidth){ res(im); return; } let to = setTimeout(()=>res(im), 8000); let done = ()=>{ clearTimeout(to); res(im); }; im.onload = done; im.onerror = done; try{ if(im.decode) im.decode().then(done, done); }catch(e){} }); }
 function mixerHue(c, deg){ try{ let t = document.createElement("canvas"); t.width = c.width; t.height = c.height; let x = t.getContext("2d"); x.filter = "hue-rotate(" + deg + "deg)"; x.drawImage(c, 0, 0); let y = c.getContext("2d"); y.clearRect(0, 0, c.width, c.height); y.drawImage(t, 0, 0); }catch(e){} return c; }
 function mixerFlip(x, w, h, rng){ if(rng() < 0.5){ x.translate(w, 0); x.scale(-1, 1); } let r = Math.floor(rng() * 4); if(r){ x.translate(w / 2, h / 2); x.rotate(r * Math.PI / 2); x.translate(-w / 2, -h / 2); } }
 async function mixerTexture(getters, rng){
@@ -1181,7 +1191,7 @@ async function buildMixerArtPack(spec){
   if(!spec) return {done, total, failed};
   ART.sprites = ART.sprites || {};
   let rng = mixerRng(mixerSeed(spec.title || "mixer"));
-  let getters = [{fn: wonderTexImage, pack: (typeof WONDER_TEX_PACK !== "undefined" ? WONDER_TEX_PACK : [])}, {fn: ambTexImage, pack: (typeof AMB_TEX_PACK !== "undefined" ? AMB_TEX_PACK : [])}, {fn: itchTexImage, pack: (typeof ITCH_TEX_PACK !== "undefined" ? ITCH_TEX_PACK : [])}];
+  let getters = [{fn: wonderTexImage, pack: (typeof WONDER_TEX_PACK !== "undefined" ? WONDER_TEX_PACK : [])}, {fn: ambTexImage, pack: (typeof AMB_TEX_PACK !== "undefined" ? AMB_TEX_PACK : [])}, {fn: itchTexImage, pack: (typeof ITCH_TEX_PACK !== "undefined" ? ITCH_TEX_PACK : [])}, {fn: polyTexImage, pack: (typeof FREE_TEX_PACK !== "undefined" ? FREE_TEX_PACK.map(t=>({id: t.slug})) : [])}];
   let jobs = [];
   jobs.push(["wall texture", async()=>{ let c = await mixerTexture(getters, rng); if(!c) throw new Error("no texture source"); ART.wall = c; ART.wallFromMixer = true; if(spec.freeTex) delete spec.freeTex.wall; }]);
   jobs.push(["floor texture", async()=>{ let c = await mixerTexture(getters, rng); if(!c) throw new Error("no texture source"); ART.floor = c; ART.floorFromMixer = true; if(spec.freeTex) delete spec.freeTex.floor; }]);
@@ -1317,8 +1327,8 @@ function startMetaArt(prov){
 
 function spriteFor(e){
   let frames = ART.sprites[e.typeId];
-  if(frames && Array.isArray(frames)) return frames[(Date.now()>>8)&1];
-  if(frames) return frames;
+  if(frames && Array.isArray(frames)){ let f = frames[(Date.now()>>8)&1]; if(f) return f; }
+  else if(frames) return frames;
   let t = enemyTypeFor(e);
   if(t) return spriteFromPixelRows(t, (Date.now()>>8)&1);
   return makeSpriteStyled("#b84a5a", !!e.boss);
@@ -2521,14 +2531,15 @@ function imgToCanvasKeep(img){ let c=document.createElement("canvas"); c.width=i
 function snapshotSavedArt(){
   if(!spec) return;
   let out = Object.assign({}, spec.savedArt || {});
-  let down = (c,w,fmt,q)=>{ let t=document.createElement("canvas"); t.width=w; t.height=Math.max(1,Math.round(c.height*w/c.width)); t.getContext("2d").drawImage(c,0,0,t.width,t.height); return t.toDataURL(fmt,q); };
-  if((ART.wallFromMeta || ART.wallFromMixer) && ART.wall) out.wall = down(ART.wall,256,"image/jpeg",.82);
-  if((ART.floorFromMeta || ART.floorFromMixer) && ART.floor) out.floor = down(ART.floor,512,"image/jpeg",.82);
-  if(ART.ceilingFromMixer && ART.ceiling) out.ceiling = down(ART.ceiling,256,"image/jpeg",.82);
-  if((ART.weaponFromMeta || ART.weaponFromMixer) && ART.weaponIdle) out.weapon = down(ART.weaponIdle,256,"image/png");
+  let down = (c,w,fmt,q)=>{ try{ let t=document.createElement("canvas"); t.width=w; t.height=Math.max(1,Math.round(c.height*w/c.width)); t.getContext("2d").drawImage(c,0,0,t.width,t.height); return t.toDataURL(fmt,q); }catch(e){ return null; } };
+  let _d;
+  if((ART.wallFromMeta || ART.wallFromMixer) && ART.wall){ _d = down(ART.wall,256,"image/jpeg",.82); if(_d) out.wall = _d; }
+  if((ART.floorFromMeta || ART.floorFromMixer) && ART.floor){ _d = down(ART.floor,512,"image/jpeg",.82); if(_d) out.floor = _d; }
+  if(ART.ceilingFromMixer && ART.ceiling){ _d = down(ART.ceiling,256,"image/jpeg",.82); if(_d) out.ceiling = _d; }
+  if((ART.weaponFromMeta || ART.weaponFromMixer) && ART.weaponIdle){ _d = down(ART.weaponIdle,256,"image/png"); if(_d) out.weapon = _d; }
   let sp = Object.assign({}, out.sprites || {});
   Object.entries(ART.sprites||{}).forEach(([id,pair])=>{
-    if(((ART.spritesFromMeta && ART.spritesFromMeta[id]) || (ART.spritesFromMixer && ART.spritesFromMixer[id])) && pair && pair[0]) sp[id] = down(pair[0],256,"image/png");
+    if(((ART.spritesFromMeta && ART.spritesFromMeta[id]) || (ART.spritesFromMixer && ART.spritesFromMixer[id])) && pair && pair[0]){ let _sd = down(pair[0],256,"image/png"); if(_sd) sp[id] = _sd; }
   });
   if(Object.keys(sp).length) out.sprites = sp; else delete out.sprites;
   if(out.wall || out.floor || out.ceiling || out.weapon || out.sprites) spec.savedArt = out; else delete spec.savedArt;
