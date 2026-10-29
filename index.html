@@ -41,7 +41,8 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <button class="alt" id="saveKey">Save key</button><button class="alt" id="clearKey">Clear</button>
 <select id="artMode"><option value="painted">Painted (free, procedural, default)</option>
 <option value="mixed">Mixed (Meta wall image, Meta provider only, ~$0.01/level)</option>
-<option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC + weapon, Meta provider only, ~$0.07/level)</option></select>
+<option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC + weapon, Meta provider only, ~$0.07/level)</option>
+<option value="mixer">Offline Mixer (free, no key, remixed from built-in packs)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
@@ -1015,6 +1016,71 @@ function chromaKey(img){
   }
   x.putImageData(d,0,0); return c;
 }
+
+// v49 Offline Mixer: breeds new textures/sprites from the embedded packs only
+// (Wonder + ambientCG + itch.io textures, monster sprites). No network, no key,
+// no provider calls. Seeded per game title, so the same title always mixes the
+// same art and a game's look stays consistent across reloads.
+function mixerSeed(str){ let h = 2166136261; for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function mixerRng(seed){ let a = seed >>> 0; return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function mixerLoad(im){ return new Promise(res=>{ if(!im){ res(null); return; } if(im.tagName === "CANVAS"){ res(im); return; } if(im.complete && im.naturalWidth){ res(im); return; } let done = ()=>res(im); im.onload = done; im.onerror = done; try{ if(im.decode) im.decode().then(done, done); }catch(e){} }); }
+function mixerHue(c, deg){ try{ let t = document.createElement("canvas"); t.width = c.width; t.height = c.height; let x = t.getContext("2d"); x.filter = "hue-rotate(" + deg + "deg)"; x.drawImage(c, 0, 0); let y = c.getContext("2d"); y.clearRect(0, 0, c.width, c.height); y.drawImage(t, 0, 0); }catch(e){} return c; }
+function mixerFlip(x, w, h, rng){ if(rng() < 0.5){ x.translate(w, 0); x.scale(-1, 1); } let r = Math.floor(rng() * 4); if(r){ x.translate(w / 2, h / 2); x.rotate(r * Math.PI / 2); x.translate(-w / 2, -h / 2); } }
+async function mixerTexture(getters, rng){
+  let list = []; getters.forEach(g=>{ g.pack.forEach(t=>list.push([g.fn, t.id])); });
+  if(!list.length) return null;
+  let pick = ()=>list[Math.floor(rng() * list.length)];
+  let base = pick(), over = pick();
+  let bImg = await mixerLoad(base[0](base[1])); if(!bImg || !bImg.naturalWidth) return null;
+  let c = document.createElement("canvas"); c.width = 256; c.height = 256; let x = c.getContext("2d");
+  x.drawImage(bImg, 0, 0, 256, 256);
+  let oImg = await mixerLoad(over[0](over[1]));
+  if(oImg && oImg.naturalWidth){
+    x.save(); x.globalAlpha = 0.38; x.globalCompositeOperation = "overlay";
+    mixerFlip(x, 256, 256, rng); x.drawImage(oImg, 0, 0, 256, 256); x.restore();
+  }
+  mixerHue(c, Math.floor(rng() * 360));
+  x = c.getContext("2d");
+  for(let i=0;i<900;i++){ x.fillStyle = rng() < 0.5 ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)"; x.fillRect(Math.floor(rng() * 256), Math.floor(rng() * 256), 1, 1); }
+  return c;
+}
+async function mixerSprite(im, rng){
+  let src = await mixerLoad(im); if(!src) return null;
+  // Canvases (the painted weapon) have width/height, not naturalWidth.
+  let w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
+  if(!w || !h) return null;
+  let c = document.createElement("canvas"); c.width = w; c.height = h; let x = c.getContext("2d");
+  x.save(); mixerFlip(x, w, h, rng); x.drawImage(src, 0, 0); x.restore();
+  mixerHue(c, Math.floor(rng() * 360));
+  x = c.getContext("2d"); x.save(); x.globalCompositeOperation = "source-atop";
+  x.fillStyle = "rgba(" + Math.floor(rng() * 255) + "," + Math.floor(rng() * 255) + "," + Math.floor(rng() * 255) + ",0.18)"; x.fillRect(0, 0, w, h); x.restore();
+  return c;
+}
+async function buildMixerArtPack(spec){
+  let total = 0, done = 0, failed = [];
+  if(!spec) return {done, total, failed};
+  ART.sprites = ART.sprites || {};
+  let rng = mixerRng(mixerSeed(spec.title || "mixer"));
+  let getters = [{fn: wonderTexImage, pack: (typeof WONDER_TEX_PACK !== "undefined" ? WONDER_TEX_PACK : [])}, {fn: ambTexImage, pack: (typeof AMB_TEX_PACK !== "undefined" ? AMB_TEX_PACK : [])}, {fn: itchTexImage, pack: (typeof ITCH_TEX_PACK !== "undefined" ? ITCH_TEX_PACK : [])}];
+  let jobs = [];
+  jobs.push(["wall texture", async()=>{ let c = await mixerTexture(getters, rng); if(!c) throw new Error("no texture source"); ART.wall = c; ART.wallFromMixer = true; if(spec.freeTex) delete spec.freeTex.wall; }]);
+  jobs.push(["floor texture", async()=>{ let c = await mixerTexture(getters, rng); if(!c) throw new Error("no texture source"); ART.floor = c; ART.floorFromMixer = true; if(spec.freeTex) delete spec.freeTex.floor; }]);
+  jobs.push(["ceiling texture", async()=>{ let c = await mixerTexture(getters, rng); if(!c) throw new Error("no texture source"); ART.ceiling = c; ART.ceilingFromMixer = true; if(spec.freeTex) delete spec.freeTex.ceiling; }]);
+  let types = [...new Map((spec.enemies || []).map(e=>[e.typeId, e])).values()].slice(0, 10);
+  let used = {};
+  let pickMonster = ()=>{ let pool = MONSTER_PACK.filter(t=>!used[t.id]); if(!pool.length) pool = MONSTER_PACK; let t = pool[Math.floor(rng() * pool.length)]; used[t.id] = 1; return t; };
+  types.forEach(pe=>{
+    jobs.push(["sprite: " + (pe.typeId || "?"), async()=>{ let m = pickMonster(); let c = await mixerSprite(monsterTexImage(m.id), rng); if(!c) throw new Error("no sprite source"); ART.sprites[pe.typeId] = [c, c]; (ART.spritesFromMixer = ART.spritesFromMixer || {})[pe.typeId] = true; if(spec.freeTex){ delete spec.freeTex.enemy; delete spec.freeTex.enemyByType; } }]);
+  });
+  jobs.push(["NPC sprite", async()=>{ let m = pickMonster(); let c = await mixerSprite(monsterTexImage(m.id), rng); if(!c) throw new Error("no sprite source"); ART.sprites["__npc"] = [c, c]; (ART.spritesFromMixer = ART.spritesFromMixer || {})["__npc"] = true; }]);
+  jobs.push(["weapon image", async()=>{ if(!ART.weaponIdle) buildWeaponArt(spec); if(!ART.weaponIdle) throw new Error("no weapon"); let c = await mixerSprite(ART.weaponIdle, rng); if(!c) throw new Error("no weapon"); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMixer = true; }]);
+  total = jobs.length;
+  for(let [name, job] of jobs){
+    try{ await job(); done++; }catch(e){ failed.push(name); }
+  }
+  draw();
+  return {done, total, failed};
+}
 async function buildMetaArtPack(spec, onStatus){
   let my = ++ART_TOKEN;
   let mode = $("artMode").value;
@@ -1086,9 +1152,22 @@ function closeArtPopup(){ let p=$("artPopup"); if(p) p.style.display="none"; try
 function showTour(force){ if(!force && localStorage.getItem("ff_tourSeen")) return; let p=$("tourPopup"); if(p) p.style.display="block"; }
 function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; try{localStorage.setItem("ff_tourSeen","1")}catch(e){} }
 function startMetaArt(prov){
+  let mode = $("artMode").value;
+  // v49 Offline Mixer: provider-neutral (it makes no provider calls at all), so
+  // it runs before the v12 provider gate and before the Meta key check, and it
+  // works for Groq-generated games too. Same completion shape as the Meta path:
+  // status line overwritten, then the feed card re-snapshotted.
+  if(mode==="mixer"){
+    let mySpec = spec;
+    buildMixerArtPack(spec).then(res=>{
+      if(spec!==mySpec) return;
+      $("status").innerHTML = proofStatus(prov, "Offline Mixer art ready: walls, floor, ceiling, enemy sprites, NPC and weapon remixed from built-in packs (free, no key, no Meta calls)."+(res.failed.length ? ' &nbsp;<span class="err">Kept painted fallback for: '+res.failed.join(" · ")+"</span>" : ""));
+      if(res.done>0) updateFeedCardArt();
+    });
+    return;
+  }
   // v12 provider rule: Groq games never call Meta, Meta games never call Groq.
   if(prov.id==="groq") return;
-  let mode = $("artMode").value;
   if(mode==="painted") return;
   if(!localStorage.getItem("ff_key_meta")){
     $("status").innerHTML += '<br><span class="err">No Meta key saved, so no Meta images. AI pixel sprites + AI palette textures used instead — the game itself is fine.</span>';
@@ -1304,7 +1383,7 @@ function loadSpec(s,src,promptText){
   }
   spec = fresh; window.spec = spec;
   ART.wall=null; ART.floor=null; ART.ceiling=null; ART.sprites={}; ART_TOKEN++; window.ART=ART;
-  ART.wallFromMeta=false; ART.floorFromMeta=false; ART.spritesFromMeta={};
+  ART.wallFromMeta=false; ART.floorFromMeta=false; ART.spritesFromMeta={}; ART.wallFromMixer=false; ART.floorFromMixer=false; ART.ceilingFromMixer=false; ART.weaponFromMixer=false; ART.spritesFromMixer={};
   if($("artBarWrap")) $("artBarWrap").style.display="none";
   buildArtPack(spec);
   $("specBox").value = JSON.stringify(spec,null,1);
@@ -2322,15 +2401,16 @@ function snapshotSavedArt(){
   if(!spec) return;
   let out = Object.assign({}, spec.savedArt || {});
   let down = (c,w,fmt,q)=>{ let t=document.createElement("canvas"); t.width=w; t.height=Math.max(1,Math.round(c.height*w/c.width)); t.getContext("2d").drawImage(c,0,0,t.width,t.height); return t.toDataURL(fmt,q); };
-  if(ART.wallFromMeta && ART.wall) out.wall = down(ART.wall,256,"image/jpeg",.82);
-  if(ART.floorFromMeta && ART.floor) out.floor = down(ART.floor,512,"image/jpeg",.82);
-  if(ART.weaponFromMeta && ART.weaponIdle) out.weapon = down(ART.weaponIdle,256,"image/png");
+  if((ART.wallFromMeta || ART.wallFromMixer) && ART.wall) out.wall = down(ART.wall,256,"image/jpeg",.82);
+  if((ART.floorFromMeta || ART.floorFromMixer) && ART.floor) out.floor = down(ART.floor,512,"image/jpeg",.82);
+  if(ART.ceilingFromMixer && ART.ceiling) out.ceiling = down(ART.ceiling,256,"image/jpeg",.82);
+  if((ART.weaponFromMeta || ART.weaponFromMixer) && ART.weaponIdle) out.weapon = down(ART.weaponIdle,256,"image/png");
   let sp = Object.assign({}, out.sprites || {});
   Object.entries(ART.sprites||{}).forEach(([id,pair])=>{
-    if(ART.spritesFromMeta && ART.spritesFromMeta[id] && pair && pair[0]) sp[id] = down(pair[0],256,"image/png");
+    if(((ART.spritesFromMeta && ART.spritesFromMeta[id]) || (ART.spritesFromMixer && ART.spritesFromMixer[id])) && pair && pair[0]) sp[id] = down(pair[0],256,"image/png");
   });
   if(Object.keys(sp).length) out.sprites = sp; else delete out.sprites;
-  if(out.wall || out.floor || out.weapon || out.sprites) spec.savedArt = out; else delete spec.savedArt;
+  if(out.wall || out.floor || out.ceiling || out.weapon || out.sprites) spec.savedArt = out; else delete spec.savedArt;
 }
 function restoreSavedArt(){
   if(!spec || !spec.savedArt) return;
@@ -2338,6 +2418,7 @@ function restoreSavedArt(){
   let put = (url, fn)=>{ let img = new Image(); img.onload = ()=>{ if(spec !== mySpec) return; fn(img); draw(); }; img.src = url; };
   if(sa.wall && !ca.wall) put(sa.wall, img=>{ let c = imgToCanvasKeep(img); ART.wall = c; ART.wall2 = makeVariant(c); });
   if(sa.floor && !ca.floor) put(sa.floor, img=>{ ART.floor = imgToCanvasKeep(img); });
+  if(sa.ceiling && !ca.ceiling) put(sa.ceiling, img=>{ ART.ceiling = imgToCanvasKeep(img); });
   if(sa.weapon && !ca.weapon) put(sa.weapon, img=>{ let c = imgToCanvasKeep(img); ART.weaponIdle = c; ART.weaponFire = c; ART.weaponFromMeta = true; });
   Object.entries(sa.sprites||{}).forEach(([id, url])=>{
     if(spec.freeTex && (spec.freeTex.enemy || (spec.freeTex.enemyByType && spec.freeTex.enemyByType[id]))) return;
