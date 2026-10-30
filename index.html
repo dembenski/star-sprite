@@ -44,7 +44,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <option value="full">Full AI art (Meta, wall + floor + up to 3 enemy sprites + NPC + weapon, needs Meta key, ~$0.07/level)</option>
 <option value="mixer">Offline Mixer (free, no key, remixed from built-in packs + Poly Haven)</option></select>
 <label><input type="checkbox" id="soundOn" checked> Sound ON/OFF</label>
-<label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
+<label><input type="checkbox" id="musicOn"> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
 
 <div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b id="walkTitle">Welcome to Star Sprite</b><br><span id="walkBody"></span><br><span id="walkProgress" style="opacity:.8"></span><div style="margin-top:8px"><button id="walkBack" onclick="walkStep(-1)">Back</button> <button id="walkNext" onclick="walkStep(1)">Next</button> <button id="walkSkip" onclick="closeTour()">Skip tour</button> <button id="walkClose" onclick="closeTour()">Close</button></div></div>
@@ -57,7 +57,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button>
 <button id="shuffle" class="alt">Shuffle prompt</button><button id="demo" class="alt">Built-in demo map</button></div>
-<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div><div id="artPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #ffd84d;border-radius:12px;padding:12px 16px;max-width:420px;text-align:center"><b>High-res textures take a few minutes</b><br>Your game plays right away with painted textures. The high-res Meta textures load in one by one after that — walls and floor first, weapon last. Keep playing while they arrive.<br><button onclick="closeArtPopup()" style="margin-top:8px">Close</button></div><div class="card"><h3>MIDI Sound Generator</h3><p><small>Every game auto-plays its own title-seeded tune. Tweak the style and tempo here — games pick it up as they load.</small></p><div class="row"><label>Style <select id="musicStyle"><option value="cheerful">Cheerful</option><option value="adventure">Adventure</option><option value="spooky">Spooky</option><option value="chill">Chill</option><option value="retro">Retro</option></select></label><label>Tempo <input type="range" id="musicTempo" min="200" max="700" step="20" value="420"> <span id="musicTempoLabel">420 ms per note</span></label><button class="alt" id="musicPlay">Play preview</button><button class="alt" id="musicStop">Stop</button><button class="alt" id="musicSurprise">Surprise me</button></div><div id="musicStatus"><small></small></div></div></section>
+<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div><div id="artPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #ffd84d;border-radius:12px;padding:12px 16px;max-width:420px;text-align:center"><b>High-res textures take a few minutes</b><br>Your game plays right away with painted textures. The high-res Meta textures load in one by one after that — walls and floor first, weapon last. Keep playing while they arrive.<br><button onclick="closeArtPopup()" style="margin-top:8px">Close</button></div><div class="card"><h3>MIDI Sound Generator</h3><p><small>When Music is on, every game plays its own title-seeded tune. Tweak the style and tempo here — games pick it up as they load.</small></p><div class="row"><label>Style <select id="musicStyle"><option value="cheerful">Cheerful</option><option value="adventure">Adventure</option><option value="spooky">Spooky</option><option value="chill">Chill</option><option value="retro">Retro</option></select></label><label>Tempo <input type="range" id="musicTempo" min="200" max="700" step="20" value="420"> <span id="musicTempoLabel">420 ms per note</span></label><button class="alt" id="musicPlay">Play preview</button><button class="alt" id="musicStop">Stop</button><button class="alt" id="musicSurprise">Surprise me</button></div><div id="musicStatus"><small></small></div></div></section>
 
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
@@ -1342,7 +1342,11 @@ const WALK_STEPS=[
 {t:"3. Pick an engine",b:"Four engines: FPS 2.5D raycaster, top-view shooter, side-scroll shooter, or True 3D. The same prompt works in any of them.",tab:"make",el:"engineSel"},
 {t:"4. Pick a provider",b:"Meta Wonder is recommended and needs a saved key. Groq is the free backup. Star Sprite is free and offline, no key at all, and it builds the level layout itself.",tab:"make",el:"provider"},
 {t:"5. Generate and play",b:"Click Generate, then play right here: move, aim, shoot, reach the goal. Kills score 100, the goal scores 500, and your best score is saved.",tab:"make",el:"generate"},
-{t:"6. Edit and share",b:"On the Advanced tab you can build with no key in the Offline Game Maker, edit any level by hand in the Hand editor, and share a finished game from its feed card with one link.",tab:"adv",el:"offmaker"}
+{t:"6. Music starts off",b:"Music now starts off, so games load silent. Tick Music ON/OFF at the top any time you want the tune. The MIDI Sound Generator below Make a game changes its style and tempo.",tab:"make",el:"musicOn"},
+{t:"7. Offline Game Maker",b:"On the Advanced tab, build a complete game with no key and no internet: pick a theme, layout, and textures from dropdowns, then Build.",tab:"adv",el:"offmaker"},
+{t:"8. Hand editor",b:"Edit any level by hand: pick a tool like Wall, Floor, or Enemy, then paint on the map. Your art carries over.",tab:"adv",el:"tool"},
+{t:"9. Free textures",b:"Dress a game with free Poly Haven and Wonder textures: pick a target, like walls or an enemy type, and apply a texture pack.",tab:"adv",el:"freeTexTarget"},
+{t:"10. Talk to Bit and share",b:"Tell Bit a change in plain words and it edits the game for you. When a game is done, share it from its feed card with one link.",tab:"adv",el:"bitLog"}
 ];
 function walkClearHL(){ if(walkHL){ walkHL.style.outline=""; walkHL=null; } }
 function walkShow(i){
@@ -1364,8 +1368,8 @@ if(nx) nx.textContent=walkStepIdx===WALK_STEPS.length-1?"Done":"Next";
 p.style.display="block";
 }
 function walkStep(d){ if(walkStepIdx===WALK_STEPS.length-1 && d>0){ closeTour(); return; } walkShow(walkStepIdx+d); }
-function showTour(force){ if(!force){ try{ if(localStorage.getItem("ff_walkSeen")) return; }catch(e){} } walkShow(0); }
-function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; walkClearHL(); try{localStorage.setItem("ff_walkSeen","1")}catch(e){} }
+function showTour(force){ if(!force){ try{ if(localStorage.getItem("ff_walk2Seen")) return; }catch(e){} } walkShow(0); }
+function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; walkClearHL(); try{localStorage.setItem("ff_walk2Seen","1")}catch(e){} }
 function startMetaArt(prov){
   let mode = $("artMode").value;
   // v49 Offline Mixer: provider-neutral (it makes no provider calls at all), so
@@ -3586,7 +3590,7 @@ feed=feed.filter(f=>{if(seenT.has(f.title)||(f.hash&&seenH.has(f.hash)))return f
 if(feed.length!==before)localStorage.setItem("ff_feed",JSON.stringify(feed));})();
 renderFeed();
 if($("hdMode")) setHiRes($("hdMode").checked);
-// v64 guided walkthrough: step-by-step, shows once per browser, re-opens from the Tour button.
+// v65 guided walkthrough: step-by-step incl. Advanced, shows once per browser, re-opens from the Tour button.
 if($("tourBtn")) $("tourBtn").onclick=()=>showTour(true);
 showTour(false);
 </script></body></html>
