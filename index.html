@@ -1005,7 +1005,7 @@ function refreshMusic(){
   let sm=$("musicSurprise"); if(sm) sm.onclick=()=>{ musicSalt=Math.floor(Math.random()*9999)+1; localStorage.setItem("ff_music_salt",musicSalt); refreshMusic(); };
   refreshMusic();
 })();
-document.querySelector("#game").addEventListener("pointerdown",()=>startMusic());document.addEventListener("keydown",e=>{let t=e.target||{};if(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT")return;let k=(e.key||"").toLowerCase();if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," "].indexOf(k)>=0)startMusic();});
+document.addEventListener("keydown",e=>{let t=e.target||{};if(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT")return;let k=(e.key||"").toLowerCase();if(["w","a","s","d"].indexOf(k)>=0)startMusic();});
 
 // ---------- PSX kawaii textures + pixel sprites (v3, no emoji characters) ----------
 const BUF=document.createElement("canvas");BUF.width=320;BUF.height=180;
@@ -1342,7 +1342,7 @@ const WALK_STEPS=[
 {t:"3. Pick an engine",b:"Four engines: FPS 2.5D raycaster, top-view shooter, side-scroll shooter, or True 3D. The same prompt works in any of them.",tab:"make",el:"engineSel"},
 {t:"4. Pick a provider",b:"Meta Wonder is recommended and needs a saved key. Groq is the free backup. Star Sprite is free and offline, no key at all, and it builds the level layout itself.",tab:"make",el:"provider"},
 {t:"5. Generate and play",b:"Click Generate, then play right here: move, aim, shoot, reach the goal. Kills score 100, the goal scores 500, and your best score is saved.",tab:"make",el:"generate"},
-{t:"6. Music waits until you play",b:"No music while you browse: the tune starts when you start a game, or when you click the game itself. Games play music by default. Tick Music ON/OFF at the top any time you want silence. The MIDI Sound Generator below Make a game changes its style and tempo.",tab:"make",el:"musicOn"},
+{t:"6. Music starts when you play",b:"Music starts only when you actually play: move with WASD, push the joystick, jump, or shoot. Scrolling past the game never starts it. Games play music by default. Tick Music ON/OFF at the top any time you want silence. The MIDI Sound Generator below Make a game changes its style and tempo.",tab:"make",el:"musicOn"},
 {t:"7. Offline Game Maker",b:"On the Advanced tab, build a complete game with no key and no internet: pick a theme, layout, and textures from dropdowns, then Build.",tab:"adv",el:"offmaker"},
 {t:"8. Hand editor",b:"Edit any level by hand: pick a tool like Wall, Floor, or Enemy, then paint on the map. Your art carries over.",tab:"adv",el:"tool"},
 {t:"9. Free textures",b:"Dress a game with free Poly Haven and Wonder textures: pick a target, like walls or an enemy type, and apply a texture pack.",tab:"adv",el:"freeTexTarget"},
@@ -1368,8 +1368,8 @@ if(nx) nx.textContent=walkStepIdx===WALK_STEPS.length-1?"Done":"Next";
 p.style.display="block";
 }
 function walkStep(d){ if(walkStepIdx===WALK_STEPS.length-1 && d>0){ closeTour(); return; } walkShow(walkStepIdx+d); }
-function showTour(force){ if(!force){ try{ if(localStorage.getItem("ff_walk3Seen")) return; }catch(e){} } walkShow(0); }
-function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; walkClearHL(); try{localStorage.setItem("ff_walk3Seen","1")}catch(e){} }
+function showTour(force){ if(!force){ try{ if(localStorage.getItem("ff_walk4Seen")) return; }catch(e){} } walkShow(0); }
+function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; walkClearHL(); try{localStorage.setItem("ff_walk4Seen","1")}catch(e){} }
 function startMetaArt(prov){
   let mode = $("artMode").value;
   // v49 Offline Mixer: provider-neutral (it makes no provider calls at all), so
@@ -1624,7 +1624,6 @@ function loadSpec(s,src,promptText){
   if(!window.__booting) $("game").scrollIntoView({behavior:"smooth", block:"center"});
   showBest();
   console.log("[StarSprite] loaded:", src, spec.title, "hash", before, "->", specHash(spec));
-  if(!window.__booting) startMusic();
 }
 function refreshEnemyTypePicker(){
   let sel=$("etype"); if(!sel) return;
@@ -2078,14 +2077,14 @@ function lookEnd(e){
   if(!lookDrag) return;
   let wasDrag = lookDrag.moved;
   lookDrag = null;
-  if(!wasDrag && e.pointerType !== "mouse") shoot();
+  if(!wasDrag && e.pointerType !== "mouse"){ startMusic(); shoot(); }
 }
 function bindLook(el, engine){
   if(!el) return;
   el.style.touchAction = "none";
   el.addEventListener("pointerdown", e => {
     lookStart(el, e);
-    if(e.pointerType === "mouse"){ shoot(); el.requestPointerLock && spec.engine === engine && el.requestPointerLock(); }
+    if(e.pointerType === "mouse"){ startMusic(); shoot(); el.requestPointerLock && spec.engine === engine && el.requestPointerLock(); }
   });
   el.addEventListener("pointermove", lookMove);
   el.addEventListener("pointerup", lookEnd);
@@ -2095,8 +2094,8 @@ bindLook(cv, "fps");
 if(GLC) bindLook(GLC, "3d");
 document.addEventListener("mousemove",e=>{if(document.pointerLockElement===cv||document.pointerLockElement===GLC)G.angle+=e.movementX*.003});
 $("playBtn").onclick=()=>{loadSpec(spec,"play");draw()};
-$("mFire").onclick=shoot;let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{keys.space=true;setTimeout(()=>keys.space=false,120)};
-let joy=$("joy");joy.addEventListener("pointermove",e=>{let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
+$("mFire").onclick=()=>{startMusic();shoot();};let _sb=$("shootBtn");if(_sb)_sb.onpointerdown=e=>{e.preventDefault();startMusic();shoot()};$("mReload").onclick=()=>G&&(G.ammo=30);$("mJump").onclick=()=>{startMusic();keys.space=true;setTimeout(()=>keys.space=false,120)};
+let joy=$("joy");joy.addEventListener("pointermove",e=>{startMusic();let r=joy.getBoundingClientRect(),dx=(e.clientX-r.left-50)/50,dy=(e.clientY-r.top-50)/50;mobile.x=Math.max(-1,Math.min(1,dx));mobile.y=Math.max(-1,Math.min(1,dy));mobile.run=Math.hypot(dx,dy)>0.85;$("knob").style.left=28+mobile.x*28+"px";$("knob").style.top=28+mobile.y*28+"px"});joy.addEventListener("pointerup",()=>{mobile.x=mobile.y=0});
 // ---------- tabs ----------
 let tab="make";function setTab(t){tab=t;$("makeTab").style.display=t==="make"?"":"none";$("advTab").style.display=t==="adv"?"":"none";$("tabMake").classList.toggle("on",t==="make");$("tabAdv").classList.toggle("on",t==="adv")} 
 $("tabMake").onclick=()=>setTab("make");$("tabAdv").onclick=()=>setTab("adv");setTab(tab);
@@ -3591,7 +3590,7 @@ feed=feed.filter(f=>{if(seenT.has(f.title)||(f.hash&&seenH.has(f.hash)))return f
 if(feed.length!==before)localStorage.setItem("ff_feed",JSON.stringify(feed));})();
 renderFeed();
 if($("hdMode")) setHiRes($("hdMode").checked);
-// v66 guided walkthrough: step-by-step incl. Advanced, shows once per browser, re-opens from the Tour button.
+// v67 guided walkthrough: step-by-step incl. Advanced, shows once per browser, re-opens from the Tour button.
 if($("tourBtn")) $("tourBtn").onclick=()=>showTour(true);
 showTour(false);
 </script></body></html>
