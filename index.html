@@ -1612,6 +1612,33 @@ function resetGame(){
   playing = true;
 }
 function wall(x,y){let mx=Math.floor(x),my=Math.floor(y);if(!spec.map[my]||spec.map[my][mx]===undefined)return true;return["#","D"].includes(spec.map[my][mx])}
+// v63: win -> next level from the SAME provider (never a silent switch).
+async function nextLevel(wonSpec){
+  if(spec!==wonSpec) return;
+  let prov = {id: wonSpec.generatedBy, ...PROVIDERS[wonSpec.generatedBy]};
+  if(!prov) return;
+  let levelNo = (wonSpec.level||1)+1;
+  let oldTitle = wonSpec.title, oldQuest = wonSpec.quest, oldWorld = wonSpec.world;
+  let oldEngine = wonSpec.engine, oldDiff = wonSpec.difficulty, oldBoss = wonSpec.boss;
+  $("status").textContent = "Level "+levelNo+" generating with "+prov.label+"...";
+  let lastErr = null;
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      let s = await aiGenerate(prov, attempt ? lastErr.message : null);
+      if(spec!==wonSpec) return;
+      s.generatedBy = prov.id;
+      s.title = oldTitle; s.quest = oldQuest; s.world = oldWorld;
+      s.engine = oldEngine; s.difficulty = oldDiff; s.boss = oldBoss;
+      s.level = levelNo;
+      applyStickyFreeTex(s);
+      loadSpec(s, "ai-"+prov.id, $("prompt").value);
+      $("status").textContent = "Level "+levelNo+" of "+oldTitle+" — generated with "+prov.label+" (same game, same provider).";
+      startMetaArt(prov);
+      return;
+    }catch(e){ lastErr = e; }
+  }
+  $("status").innerHTML = '<span class="err">Next level failed: '+lastErr.message+' Your win still stands — press Generate for a new game.</span>';
+}
 function move(dt){let sp=(mobile.run?4.4:2.6)*dt*(spec.difficulty==="Insane"?1.1:1);let f=0,s=0;if(keys.w||keys.arrowup||mobile.y<-0.2)f+=1;if(keys.s||keys.arrowdown||mobile.y>0.2)f-=1;if(keys.a)s-=1;if(keys.d)s+=1;s+=mobile.x;
 if(spec.engine==="side"){let vx=(keys.d?2.8:0)-(keys.a?2.8:0)+mobile.x*3;G.vy+=12*dt;if((keys.w||keys.space)&&G.onGround){G.vy=-6.5;beep(500,.07)}let nx=G.px+vx*dt;if(!wall(nx,G.py))G.px=nx;let ny=G.py+G.vy*dt;if(!wall(G.px,ny)){G.py=ny;G.onGround=false}else{G.onGround=true;G.vy=0}G.angle=0}
 else if(spec.engine==="top"){let dx=(keys.d?1:0)-(keys.a?1:0)+mobile.x,dy=(keys.s?1:0)-(keys.w?1:0)+mobile.y;let l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;let nx=G.px+dx*sp,ny=G.py+dy*sp;if(!wall(nx,G.py))G.px=nx;if(!wall(G.px,ny))G.py=ny}
@@ -1633,6 +1660,9 @@ if(Math.floor(G.px)===spec.goal.x&&Math.floor(G.py)===spec.goal.y&&!G.won){G.won
   } else if(offlineCampaign){
     $("offStatus").innerHTML = '<span class="ok">Campaign complete! Build again with new options any time.</span>';
     offlineCampaign = null;
+  } else if(spec.generatedBy && PROVIDERS[spec.generatedBy]){
+    let wonSpec = spec;
+    setTimeout(()=>{ if(spec===wonSpec) nextLevel(wonSpec); }, 1600);
   }}}
 function hasLOS(x1, y1, x2, y2){
   let d = Math.hypot(x2 - x1, y2 - y1), steps = Math.max(2, Math.ceil(d / 0.08));
