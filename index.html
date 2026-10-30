@@ -47,7 +47,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <label><input type="checkbox" id="musicOn" checked> Music ON/OFF</label>
 </div><div id="keyStatus"><small>Judges without keys: demo, editor, shared links and feed work fully. AI Generate / Remix / Meta art need a key. In v12, generated games come entirely from the selected provider — there is no Instant level and no local fallback game.</small></div></div>
 
-<div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b>Welcome to Star Sprite — first time here?</b><br>Star Sprite is an AI game-making engine: type a prompt, get a playable game.<br>1. Play the demo — click "Built-in demo map". No key needed.<br>2. Build a game with no key — Advanced tab, then Offline Game Maker. Pick a theme and build.<br>3. Edit by hand — Advanced tab, then Hand Editor.<br>4. With a key — Make game tab: type a prompt, pick an engine, click Generate. Meta Wonder or Groq, your choice.<br><button onclick="closeTour()" style="margin-top:8px">Close</button></div>
+<div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b id="walkTitle">Welcome to Star Sprite</b><br><span id="walkBody"></span><br><span id="walkProgress" style="opacity:.8"></span><div style="margin-top:8px"><button id="walkBack" onclick="walkStep(-1)">Back</button> <button id="walkNext" onclick="walkStep(1)">Next</button> <button id="walkSkip" onclick="closeTour()">Skip tour</button> <button id="walkClose" onclick="closeTour()">Close</button></div></div>
 
 <section id="makeTab" class="card">
 <div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div><div class="row"><span>Try: </span><button class="alt" onclick="setStarter(0)">Candy rescue</button><button class="alt" onclick="setStarter(1)">Haunted dungeon</button><button class="alt" onclick="setStarter(2)">Pirate battle</button><button class="alt" onclick="setStarter(3)">Neon city</button><button class="alt" onclick="setStarter(4)">Wild west</button></div>
@@ -1334,8 +1334,38 @@ function proofStatus(prov, artLine){
 }
 function showArtPopup(){ if(localStorage.getItem("ff_artPopupSeen")) return; let p=$("artPopup"); if(p) p.style.display="block"; }
 function closeArtPopup(){ let p=$("artPopup"); if(p) p.style.display="none"; try{localStorage.setItem("ff_artPopupSeen","1")}catch(e){} }
-function showTour(force){ if(!force && localStorage.getItem("ff_tourSeen")) return; let p=$("tourPopup"); if(p) p.style.display="block"; }
-function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; try{localStorage.setItem("ff_tourSeen","1")}catch(e){} }
+let walkStepIdx=0, walkHL=null;
+const WALK_STEPS=[
+{t:"Welcome to Star Sprite",b:"Star Sprite is an AI game-making engine: type a prompt, get a playable game. This short walkthrough shows you around. You can skip it any time.",tab:"make",el:null},
+{t:"1. Play the demo first",b:"Click the Built-in demo map button here, next to Generate. It plays right here with no key needed, so you can feel the game before you make one.",tab:"make",el:"demo"},
+{t:"2. Write a prompt",b:"Type any game idea here, or tap a starter chip like Candy rescue. The prompt is the whole recipe: world, quest, enemies, boss.",tab:"make",el:"prompt"},
+{t:"3. Pick an engine",b:"Four engines: FPS 2.5D raycaster, top-view shooter, side-scroll shooter, or True 3D. The same prompt works in any of them.",tab:"make",el:"engineSel"},
+{t:"4. Pick a provider",b:"Meta Wonder is recommended and needs a saved key. Groq is the free backup. Star Sprite is free and offline, no key at all, and it builds the level layout itself.",tab:"make",el:"provider"},
+{t:"5. Generate and play",b:"Click Generate, then play right here: move, aim, shoot, reach the goal. Kills score 100, the goal scores 500, and your best score is saved.",tab:"make",el:"generate"},
+{t:"6. Edit and share",b:"On the Advanced tab you can build with no key in the Offline Game Maker, edit any level by hand in the Hand editor, and share a finished game from its feed card with one link.",tab:"adv",el:"offmaker"}
+];
+function walkClearHL(){ if(walkHL){ walkHL.style.outline=""; walkHL=null; } }
+function walkShow(i){
+walkStepIdx=Math.max(0,Math.min(WALK_STEPS.length-1,i));
+let s=WALK_STEPS[walkStepIdx], p=$("tourPopup");
+if(!p) return;
+try{ if(typeof setTab==="function") setTab(s.tab); }catch(e){}
+walkClearHL();
+let el=null;
+if(s.el==="offmaker"){ let h=[...document.querySelectorAll("h3")].find(h=>h.textContent.indexOf("Offline Game Maker")===0); el=h?(h.closest(".card")||h):null; }
+else if(s.el){ el=$(s.el); }
+if(el){ walkHL=el; el.style.outline="3px solid #ffd23f"; try{ el.scrollIntoView({block:"center"}); }catch(e){} }
+let t=$("walkTitle"), b=$("walkBody"), pr=$("walkProgress"), bk=$("walkBack"), nx=$("walkNext");
+if(t) t.textContent=s.t;
+if(b) b.textContent=s.b;
+if(pr) pr.textContent="Step "+(walkStepIdx+1)+" of "+WALK_STEPS.length;
+if(bk) bk.style.display=walkStepIdx===0?"none":"";
+if(nx) nx.textContent=walkStepIdx===WALK_STEPS.length-1?"Done":"Next";
+p.style.display="block";
+}
+function walkStep(d){ if(walkStepIdx===WALK_STEPS.length-1 && d>0){ closeTour(); return; } walkShow(walkStepIdx+d); }
+function showTour(force){ if(!force){ try{ if(localStorage.getItem("ff_walkSeen")) return; }catch(e){} } walkShow(0); }
+function closeTour(){ let p=$("tourPopup"); if(p) p.style.display="none"; walkClearHL(); try{localStorage.setItem("ff_walkSeen","1")}catch(e){} }
 function startMetaArt(prov){
   let mode = $("artMode").value;
   // v49 Offline Mixer: provider-neutral (it makes no provider calls at all), so
@@ -3556,7 +3586,7 @@ feed=feed.filter(f=>{if(seenT.has(f.title)||(f.hash&&seenH.has(f.hash)))return f
 if(feed.length!==before)localStorage.setItem("ff_feed",JSON.stringify(feed));})();
 renderFeed();
 if($("hdMode")) setHiRes($("hdMode").checked);
-// v34 first-run tour: shows once per browser, re-opens from the Tour button.
+// v64 guided walkthrough: step-by-step, shows once per browser, re-opens from the Tour button.
 if($("tourBtn")) $("tourBtn").onclick=()=>showTour(true);
 showTour(false);
 </script></body></html>
