@@ -29,7 +29,7 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 #weaponName{position:absolute;right:16px;bottom:118px;z-index:3;padding:5px 9px;border-radius:999px;background:rgba(10,6,18,.72);color:#fff;font-size:13px;font-weight:700;pointer-events:none}
 #crossText{display:block;text-align:center;line-height:34px;font-size:32px;font-weight:900;text-shadow:0 0 8px #000,0 2px 5px #000}
 </style></head><body>
-<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v69</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -198,6 +198,21 @@ Groq games never call Meta.</small></p>
 <div class="row"><input id="freeTexUrlInput" size="52" placeholder="Or paste any image link"><button id="freeTexUrlBtn">Use link</button></div>
 <div class="row"><span id="freeTexSticky" class="small"></span><button id="freeTexClearBtn" style="display:none">Clear sticky textures</button></div>
 <div id="freeTexStatus"><small>No free texture picked yet.</small></div>
+</div>
+
+<div class="card" style="background:#1c2a1c;border:2px solid #7be0a3">
+<h3>Meshes — procedural + free library models (v69)</h3>
+<p><small>True 3D props for your level. <b>Procedural</b> meshes are built offline from code — free, no key, no internet. <b>Library</b> pulls a real CC0 model from Poly Pizza (public domain, no key) and falls back to the procedural version of the same object if the download fails. Meta/Groq decide <i>what</i> mesh a game needs; the Star provider builds or pulls it. No Hugging Face Spaces anywhere.</small></p>
+<div class="row">
+<label>Object <select id="meshKind">
+<option value="tree">Pine tree</option><option value="rock">Rock</option><option value="chest">Treasure chest</option><option value="crystal">Crystal</option><option value="mushroom">Mushroom</option><option value="tower">Tower</option><option value="lamp">Lamp</option><option value="house">House</option><option value="barrel">Barrel</option><option value="pillar">Pillar</option><option value="bush">Bush</option><option value="statue">Statue</option>
+</select></label>
+<label>Source <select id="meshSource"><option value="procedural">Procedural (offline)</option><option value="library">Library (Poly Pizza CC0)</option></select></label>
+<label>Size <select id="meshSize"><option value="0.8">Small</option><option value="1.2" selected>Normal</option><option value="2">Large</option></select></label>
+<button id="meshAdd">Add mesh to level</button>
+<button class="alt" id="meshTestLib">Test library pull</button>
+</div>
+<div id="meshStatus"><small>No mesh added yet. Generate a True 3D game and the AI will place meshes for you.</small></div>
 </div>
 
 <div class="card" style="background:#10202e;border:2px solid #37e0ff">
@@ -508,6 +523,25 @@ function repair(s){
   s.pickups = fixPlaced(s.pickups);
   s.npcs=(Array.isArray(s.npcs)?s.npcs:[]).slice(0,6).map((n,i)=>({id:n.id||"n"+i,name:(n.name||"Guide").slice(0,24),persona:(n.persona||"helpful local").slice(0,60),greeting:(n.greeting||"Well met, hero!").slice(0,140),dialogue:Array.isArray(n.dialogue)?n.dialogue.slice(0,20).map(d=>String(d).slice(0,200)):(n.greeting?[n.greeting]:[]),x:Math.max(1,Math.min(w-2,Math.floor(n.x||2))),y:Math.max(1,Math.min(h-2,Math.floor(n.y||2)))}));
   s.npcs = fixPlaced(s.npcs);
+  // v69 meshes: manifest mesh specs become props with a mesh field.
+  // Props are the single source of truth; s.meshes is dropped after
+  // conversion so a second repair never duplicates them.
+  if(Array.isArray(s.meshes)){
+    let have = new Set((s.props||[]).map(p=>p.mesh && p.mesh.id).filter(Boolean));
+    for(let m of s.meshes.slice(0,8)){
+      let ms = sanitizeMeshSpec(m, w, h);
+      if(!ms || have.has(ms.id)) continue;
+      have.add(ms.id);
+      let cell = {x:ms.x, y:ms.y};
+      if(!s.map[cell.y] || s.map[cell.y][cell.x] !== "."){
+        let f = nearestFloorCell(s.map, cell.x, cell.y);
+        if(!f) continue; cell = f;
+      }
+      (s.props = s.props || []).push({id:"p"+ms.id, model:ms.name, x:cell.x, y:cell.y, scale:ms.size, rot:0, color:(ms.colors && ms.colors.primary)||"#ff7ab6", mesh:ms});
+    }
+  }
+  delete s.meshes;
+  if(Array.isArray(s.props)) s.props = s.props.slice(0,40).map(p=>({...p, x:Math.max(1,Math.min(w-2,Math.floor(p.x||1))), y:Math.max(1,Math.min(h-2,Math.floor(p.y||1))), scale:Math.max(.4,Math.min(3,+p.scale||1))}));
   // v59: every game gets health pickups — if the spec has no pickup
   // that restores HP, seed 3 health packs on random floor cells.
   if(!(s.pickups||[]).some(p=>p.kind!=="ammo")){
@@ -580,6 +614,18 @@ function validateManifestAI(s){
   for(let n of s.npcs){
     if(!n.name || !n.persona || !n.greeting) return "an NPC is missing name, persona or greeting";
     if(!Array.isArray(n.dialogue) || n.dialogue.length<6) return "NPC "+n.name+" dialogue must contain at least 6 original lines";
+  }
+  // v69 meshes: optional, validated the same way as everything else.
+  if(s.meshes!==undefined){
+    if(!Array.isArray(s.meshes)) return "meshes must be an array";
+    if(s.meshes.length>8) return "too many meshes (max 8)";
+    let mids=new Set();
+    for(let m of s.meshes){
+      if(!m.id || !m.name || !MESH_KINDS.includes(m.kind)) return "a mesh is missing id, name or a valid kind";
+      if(mids.has(m.id)) return "duplicate mesh id: "+m.id; mids.add(m.id);
+      if(m.source && m.source!=="procedural" && m.source!=="library") return "mesh "+m.name+" source must be procedural or library";
+      if(m.colors) for(let k of Object.keys(m.colors)) if(!hexOk(m.colors[k])) return "mesh "+m.name+" colour "+k+" is not a hex colour";
+    }
   }
   return null;
 }
@@ -660,7 +706,7 @@ the same length, "." = transparent), enemy placements by typeId,
 pickups, and NPCs with names, personas, greetings and at least 6 dialogue
 lines each. Map: 14-20 columns, 10-14 rows, every row the SAME length,
 complete # border, exactly one P and one G, only characters # . P G D,
-4-12 enemies inside the walls. Pick colours that fit the new world -
+4-12 enemies inside the walls. Include 2-4 meshes (id, name, kind from tree rock chest crystal mushroom tower lamp house barrel pillar bush statue, source procedural or library, style, size, x, y, colours as #rrggbb hex) placed on open floor. Pick colours that fit the new world -
 do NOT default to pink/dessert unless the remix itself calls for it.
 Original names only, no trademark names. This must be a NEW game,
 not the original with a new title.`;
@@ -878,6 +924,8 @@ function starOfflineLevel(){
     set("offPHP", "100"); set("offPSpeed", "2.8");
     set("offHealth", "3"); set("offAmmoP", "3"); set("offNPC", "1");
     let s = buildOfflineLevel(1);
+    // v69: Star offline meshes — theme-derived, seeded, no LLM, no network.
+    s.meshes = starThemeMeshes(s.world && s.world.theme, s.map, prompt);
     // The Maker's texture picks must NOT ride along: Star art comes from the
     // artMode (painted/mixer/Meta), never from leftover Maker selections.
     delete s.offlineTex;
@@ -936,9 +984,12 @@ Map requirements:
 - Only map characters: # . P G D
 - Place enemies using typeIds from enemyTypes.
 - Place 4-12 normal enemies unless difficulty says more.
+Mesh requirements (True 3D props — add 2-4 when the engine is 3d, or when the prompt names a visible object):
+- Each mesh: id, name, kind (one of tree, rock, chest, crystal, mushroom, tower, lamp, house, barrel, pillar, bush, statue), source ("procedural" for a built-in low-poly shape, or "library" for a real free model when the object is a common thing like a tree, chest or barrel), style words, size 0.6-2.0, x, y on open floor, colours as #rrggbb hex.
+- The engine builds procedural meshes offline and pulls library models from free CC0 libraries; it never invents a model URL.
 - NPC dialogue must contain at least 6 original lines.
 Return the complete manifest:
-{"title":"Original game title","quest":"Original quest sentence","world":{"theme":"AI-invented theme","mood":"AI-described mood","skyColor":"#08131f","floorColor":"#1b2533","wallColor":"#46617f","secondaryWallColor":"#2c435e","accentColor":"#62d8ff","wallDescription":"Detailed visual description of the walls","floorDescription":"Detailed visual description of the floor","skyDescription":"Detailed visual description of the sky"},"weapon":{"name":"AI-invented weapon name","description":"Detailed visual description","kind":"blaster","primaryColor":"#315a8c","secondaryColor":"#62d8ff","darkColor":"#101d33","crosshair":"circle","projectileColor":"#aef4ff","fireSound":"laser"},"enemyTypes":[{"id":"enemy_1","name":"AI-invented enemy name","description":"Detailed appearance description","role":"chaser","hp":3,"speed":0.55,"damage":10,"size":1.0,"primaryColor":"#b84a5a","secondaryColor":"#f2c14e","darkColor":"#20131f","eyeColor":"#ffffff","shape":"mech","imagePrompt":"Full detailed sprite-generation prompt","pixelPalette":{"K":"#171321","B":"#b84a5a","A":"#f2c14e","W":"#ffffff","E":"#171321"},"pixelRows":["......KKKK......","....KKBBBBKK...."]}],"map":["################","#P.............#","#..............#","##############G#","################"],"enemies":[{"x":4,"y":2,"typeId":"enemy_1"}],"pickups":[{"x":5,"y":3,"name":"AI-invented pickup","kind":"health"}],"npcs":[{"id":"npc_1","name":"AI-invented NPC name","persona":"AI-invented personality","greeting":"AI-written greeting","dialogue":["AI-written dialogue line 1","AI-written dialogue line 2","AI-written dialogue line 3"],"x":2,"y":2}]}`;
+{"title":"Original game title","quest":"Original quest sentence","world":{"theme":"AI-invented theme","mood":"AI-described mood","skyColor":"#08131f","floorColor":"#1b2533","wallColor":"#46617f","secondaryWallColor":"#2c435e","accentColor":"#62d8ff","wallDescription":"Detailed visual description of the walls","floorDescription":"Detailed visual description of the floor","skyDescription":"Detailed visual description of the sky"},"weapon":{"name":"AI-invented weapon name","description":"Detailed visual description","kind":"blaster","primaryColor":"#315a8c","secondaryColor":"#62d8ff","darkColor":"#101d33","crosshair":"circle","projectileColor":"#aef4ff","fireSound":"laser"},"enemyTypes":[{"id":"enemy_1","name":"AI-invented enemy name","description":"Detailed appearance description","role":"chaser","hp":3,"speed":0.55,"damage":10,"size":1.0,"primaryColor":"#b84a5a","secondaryColor":"#f2c14e","darkColor":"#20131f","eyeColor":"#ffffff","shape":"mech","imagePrompt":"Full detailed sprite-generation prompt","pixelPalette":{"K":"#171321","B":"#b84a5a","A":"#f2c14e","W":"#ffffff","E":"#171321"},"pixelRows":["......KKKK......","....KKBBBBKK...."]}],"map":["################","#P.............#","#..............#","##############G#","################"],"enemies":[{"x":4,"y":2,"typeId":"enemy_1"}],"pickups":[{"x":5,"y":3,"name":"AI-invented pickup","kind":"health"}],"npcs":[{"id":"npc_1","name":"AI-invented NPC name","persona":"AI-invented personality","greeting":"AI-written greeting","dialogue":["AI-written dialogue line 1","AI-written dialogue line 2","AI-written dialogue line 3"],"x":2,"y":2}],"meshes":[{"id":"m1","name":"Pine Tree","kind":"tree","source":"procedural","style":"snowy pine","size":1.2,"x":5,"y":7,"colors":{"trunk":"#7a5230","foliage":"#2f7d4f"}}]}`;
   let genre = genreById($("genreSel").value);
   if(genre && genre.flavor) sys += "\n" + genre.flavor + " Design the level, enemies, theme, and quest text to match this genre while keeping every number inside the stated caps.";
   let txt = await llmProvider(prov, [
@@ -954,6 +1005,426 @@ Return the complete manifest:
   if(v) throw new Error("Manifest validation failed: "+v);
   return repair(s);
 }
+// ---------- v69 meshes: procedural + free library models ----------
+// Two mesh routes, no Hugging Face Spaces anywhere:
+//  1. PROCEDURAL (Star provider, offline): low-poly meshes built from the
+//     engine's own box primitives — trees, rocks, buildings, props and
+//     simple characters assembled from parts. Free, no key, works offline.
+//  2. LIBRARY PULL: CC0 GLB models from Poly Pizza (static.poly.pizza,
+//     CORS *, no key). Fetched at runtime, validated as glTF v2, parsed
+//     with the minimal parser below, cached in memory. No Sketchfab
+//     (its download API needs a token), no Kenney (ZIPs only), no
+//     Hugging Face Spaces.
+// How the AIs work together: Meta/Groq (the LLM providers) decide WHAT
+// mesh is needed — they emit a mesh spec (object, kind, style, size,
+// colours, source: procedural vs library) in the manifest. The Star
+// offline provider executes it: procedural build first, library pull
+// when a matching free model exists. A mesh failure never fails the
+// level: a library pull retries once, then the procedural build of the
+// same kind renders instead. No provider switch, ever.
+const STAR_SPRITE_VERSION = "v69";
+const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
+// Curated CC0 registry — every URL was fetched and verified as a valid
+// glTF v2 file (magic + version + full download) on 2026-11-10.
+// Poly Pizza models are CC0 1.0 (public domain); creators credited here.
+const MESH_LIBRARY = {
+  tree:    {name:"Pine Trees",    creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/1d499f8b-5a1b-4966-9a35-10c0d3841e91.glb", bytes:99604},
+  rock:    {name:"Rocks",         creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/c6f65def-08c5-4c81-b17f-f37b171ad911.glb", bytes:5940},
+  chest:   {name:"Chest",         creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/803af4ae-433f-4b05-b1f1-c6a2da02d768.glb", bytes:95736},
+  crystal: {name:"Crystal",       creator:"iPoly3D",    licence:"CC0", url:"https://static.poly.pizza/75211364-db9b-4004-8e35-18031f096da1.glb", bytes:35600},
+  mushroom:{name:"Mushroom",      creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/c30dcc3b-c43d-4ce8-9b2d-6dd942b81fd7.glb", bytes:10288},
+  tower:   {name:"Tower",         creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/749bb696-9058-4290-a5d6-92fb97a9a641.glb", bytes:114648},
+  lamp:    {name:"Light Stand",   creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/88fb336e-a7b0-4c76-8ca8-34c4655d7a87.glb", bytes:10920},
+  house:   {name:"Fantasy House", creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/341c9305-c6dd-4427-ad00-620ad57eb14e.glb", bytes:410268},
+  barrel:  {name:"Barrel",        creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/6d3e8847-bda4-4d6c-8004-7b03cf848b13.glb", bytes:75512},
+  pillar:  {name:"Column",        creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/5239f88f-e30b-452b-a19e-89745d580b1e.glb", bytes:30328},
+  bush:    {name:"Bush",          creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/6bbb833e-26cb-4bf9-ae67-a31b98e30bd9.glb", bytes:131172},
+  statue:  {name:"Horse Statue",  creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/55b0aa03-543c-439d-a7d7-f0ac4c23578f.glb", bytes:119712}
+};
+const MESH_MAX_GLB_BYTES = 8*1024*1024;
+// Procedural builders: each returns parts [{dx,dy,dz,sx,sy,sz,c}].
+// dy is the BOTTOM of the part (ground = 0). All boxes, axis-aligned,
+// rendered through the engine's own drawCube — game-ready low-poly counts.
+function meshPalette(colors){
+  let w = (spec && spec.world) || {};
+  let c = colors || {};
+  return {
+    trunk: c.trunk || "#7a5230",
+    foliage: c.foliage || c.primary || w.accentColor || "#2f7d4f",
+    foliage2: c.foliage2 || c.secondary || "#3f9d63",
+    stone: c.stone || c.primary || w.wallColor || "#8a8f98",
+    stone2: c.stone2 || c.secondary || w.secondaryWallColor || "#6a6f78",
+    wood: c.wood || c.primary || "#8a5a2b",
+    wood2: c.wood2 || c.secondary || "#a66a3f",
+    gold: c.gold || c.accent || "#ffd84d",
+    accent: c.accent || w.accentColor || "#62d8ff",
+    primary: c.primary || w.accentColor || "#62d8ff",
+    secondary: c.secondary || w.secondaryWallColor || "#2c435e",
+    red: c.red || "#c0392b",
+    cream: c.cream || "#f5e6c8",
+    glow: c.glow || "#ffe9a8"
+  };
+}
+function buildProceduralMesh(kind, colors, seed, variant){
+  let p = meshPalette(colors);
+  let parts = [];
+  let B = (dx,dy,dz,sx,sy,sz,c)=>{ parts.push({dx,dy,dz,sx,sy,sz,c}); };
+  switch(kind){
+    case "tree":
+      if(variant==="leafy"){
+        B(0,0,0, .16,.6,.16, p.trunk);
+        B(0,.55,0, .8,.5,.8, p.foliage);
+        B(.35,.8,.1, .5,.4,.5, p.foliage2);
+        B(-.3,.85,-.1, .45,.38,.45, p.foliage2);
+        B(0,1.05,0, .5,.35,.5, p.foliage);
+      } else { // pine: trunk + 3 stacked foliage boxes
+        B(0,0,0, .14,.5,.14, p.trunk);
+        B(0,.45,0, .95,.35,.95, p.foliage);
+        B(0,.75,0, .7,.32,.7, p.foliage2);
+        B(0,1.02,0, .45,.3,.45, p.foliage);
+        B(0,1.28,0, .12,.18,.12, p.trunk);
+      }
+      break;
+    case "rock":
+      B(0,0,0, .8,.45,.7, p.stone);
+      B(.35,0,.15, .45,.3,.4, p.stone2);
+      B(-.3,0,-.1, .4,.28,.35, p.stone2);
+      B(.05,.42,-.05, .35,.18,.3, p.stone);
+      break;
+    case "crystal":
+      B(0,0,0, .5,.5,.5, p.accent);
+      B(0,.45,0, .36,.5,.36, p.primary);
+      B(0,.9,0, .22,.45,.22, p.accent);
+      B(.3,0,0, .22,.3,.22, p.secondary);
+      B(-.28,0,.1, .18,.22,.18, p.primary);
+      break;
+    case "mushroom":
+      B(0,0,0, .22,.5,.22, p.cream);
+      B(0,.48,0, .85,.22,.85, p.red);
+      B(-.2,.68,-.1, .1,.06,.1, p.cream);
+      B(.18,.68,.12, .08,.06,.08, p.cream);
+      break;
+    case "chest":
+      B(0,0,0, .8,.42,.55, p.wood);
+      B(0,.4,0, .7,.22,.48, p.wood2);
+      B(0,.18,.28, .1,.1,.04, p.gold);
+      B(0,.42,0, .82,.05,.57, p.gold);
+      break;
+    case "tower":
+      B(0,0,0, .9,.9,.9, p.stone);
+      B(0,.9,0, .7,.7,.7, p.stone2);
+      B(0,1.6,0, .95,.18,.95, p.stone);
+      B(-.38,1.78,-.38, .18,.22,.18, p.stone2);
+      B(.38,1.78,-.38, .18,.22,.18, p.stone2);
+      B(-.38,1.78,.38, .18,.22,.18, p.stone2);
+      B(.38,1.78,.38, .18,.22,.18, p.stone2);
+      B(0,2.0,0, .4,.3,.4, p.accent);
+      break;
+    case "pillar":
+      B(0,0,0, .7,.14,.7, p.stone2);
+      B(0,.14,0, .4,1.1,.4, p.stone);
+      B(0,1.24,0, .7,.14,.7, p.stone2);
+      B(0,1.38,0, .3,.14,.3, p.accent);
+      break;
+    case "lamp":
+      B(0,0,0, .16,.16,.16, p.stone2);
+      B(0,.14,0, .09,1.0,.09, p.stone);
+      B(0,1.12,0, .34,.1,.34, p.wood2);
+      B(0,1.2,0, .22,.22,.22, p.glow);
+      break;
+    case "house":
+      B(0,0,0, 1.1,.7,1.0, p.wood);
+      B(0,.7,0, .95,.25,.9, p.wood2);
+      B(0,.95,0, .6,.22,.6, p.red);
+      B(0,0,.51, .3,.45,.05, p.stone2);
+      B(-.35,.35,.51, .18,.18,.05, p.glow);
+      B(.35,.35,.51, .18,.18,.05, p.glow);
+      break;
+    case "barrel":
+      B(0,0,0, .55,.22,.55, p.wood2);
+      B(0,.2,0, .62,.3,.62, p.wood);
+      B(0,.48,0, .55,.2,.55, p.wood2);
+      B(0,.3,0, .64,.05,.64, p.stone2);
+      break;
+    case "bush":
+      B(0,0,0, .7,.4,.6, p.foliage);
+      B(.35,.05,.1, .45,.32,.4, p.foliage2);
+      B(-.3,.02,-.08, .4,.3,.38, p.foliage2);
+      break;
+    case "statue":
+      B(0,0,0, .7,.2,.7, p.stone2);
+      B(0,.2,0, .4,.7,.35, p.stone);
+      B(0,.9,0, .3,.28,.28, p.stone2);
+      B(-.28,.55,0, .12,.4,.12, p.stone);
+      B(.28,.55,0, .12,.4,.12, p.stone);
+      B(0,1.18,0, .16,.14,.16, p.gold);
+      break;
+    default:
+      B(0,0,0, .7,.7,.7, p.primary);
+  }
+  return parts;
+}
+// Validate + normalise one mesh spec from a manifest (LLM or Star).
+function sanitizeMeshSpec(m, w, h){
+  if(!m || typeof m !== "object") return null;
+  if(!MESH_KINDS.includes(m.kind)) return null;
+  let hexOk = v=>/^#[0-9a-f]{6}$/i.test(v||"");
+  let colors = {};
+  if(m.colors && typeof m.colors === "object")
+    for(let k of Object.keys(m.colors)) if(hexOk(m.colors[k])) colors[k]=m.colors[k];
+  return {
+    id: "m"+String(m.id||Date.now()).slice(0,24),
+    name: String(m.name||m.kind).slice(0,40),
+    kind: m.kind,
+    variant: (m.variant==="leafy"||m.variant==="pine") ? m.variant : "pine",
+    source: m.source==="library" ? "library" : "procedural",
+    style: String(m.style||"").slice(0,80),
+    size: Math.max(.4, Math.min(3, +m.size||1)),
+    x: Math.max(1, Math.min(w-2, Math.floor(m.x||1))),
+    y: Math.max(1, Math.min(h-2, Math.floor(m.y||1))),
+    colors: colors,
+    seed: Math.abs(+m.seed||1)
+  };
+}
+// Star offline meshes: theme-derived kinds, seeded placement on open
+// floor, first mesh tries the free library, the rest are procedural.
+const THEME_MESHES = {
+  "Frozen Tundra":["tree","rock","crystal"],
+  "Dark Dungeon":["crystal","pillar","chest"],
+  "Haunted Manor":["tree","lamp","statue"],
+  "Pirate Ship":["barrel","chest","rock"],
+  "Wild West Town":["house","barrel","rock"],
+  "Neon City":["tower","pillar","lamp"],
+  "Toy Blocks":["mushroom","house","bush"],
+  "Candy Demo Style":["mushroom","tree","house"],
+  "Space Station":["pillar","tower","crystal"],
+  "Volcano Core":["rock","crystal","pillar"],
+  "Sunken Temple":["pillar","statue","chest"],
+  "Sky Fortress":["tower","pillar","crystal"],
+  "Graveyard Shift":["tree","lamp","statue"]
+};
+function starThemeMeshes(theme, map, prompt){
+  let kinds = THEME_MESHES[theme] || ["tree","rock","chest"];
+  let rng = mixerRng(mixerSeed((prompt||"")+"|meshes|"+(theme||"")));
+  let floors = [];
+  (map||[]).forEach((r,y)=>{ let row = typeof r === "string" ? [...r] : r; row.forEach((c,x)=>{ if(c===".") floors.push({x,y}); }); });
+  let out = [];
+  let n = 3 + Math.floor(rng()*2); // 3-4 meshes
+  for(let i=0;i<n && floors.length;i++){
+    let cell = floors.splice(Math.floor(rng()*floors.length),1)[0];
+    let kind = kinds[i % kinds.length];
+    out.push({id:"m"+(i+1), name:kind.charAt(0).toUpperCase()+kind.slice(1), kind,
+      source:(i===0 && MESH_LIBRARY[kind]) ? "library" : "procedural",
+      style:"", size:+(0.9+rng()*0.7).toFixed(2), x:cell.x, y:cell.y, colors:{}, seed:1000+i});
+  }
+  return out;
+}
+// ---- minimal GLB (glTF 2.0 binary) parser ----
+// Reads POSITION + indices + per-primitive baseColorFactor, applies node
+// TRS matrices, normalises the model to a unit box (min-Y on the ground).
+// No textures, no skins, no animations — flat-colour props only, which is
+// exactly what this engine's shader draws.
+const MESH_GLB_CACHE = new Map(); // kind -> {state, data|promise, tries, error}
+let meshGLBBuffers = {}; // kind -> {buf, tris:[{start,count,color}]}
+function glbReadAccessor(json, bin, ai, out){
+  let a = json.accessors[ai];
+  let bv = json.bufferViews[a.bufferView];
+  let compSize = {5120:1,5121:1,5122:2,5123:2,5125:4,5126:4}[a.componentType];
+  let numComp = {SCALAR:1,VEC2:2,VEC3:3,VEC4:4}[a.type];
+  if(!compSize || !numComp) throw new Error("GLB accessor type unsupported");
+  let stride = bv.byteStride || compSize*numComp;
+  let base = (bv.byteOffset||0) + (a.byteOffset||0);
+  let dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  for(let i=0;i<a.count;i++){
+    let o = base + i*stride;
+    for(let k=0;k<numComp;k++){
+      if(a.componentType===5126) out.push(dv.getFloat32(o+k*4, true));
+      else if(a.componentType===5123) out.push(dv.getUint16(o+k*2, true));
+      else if(a.componentType===5125) out.push(dv.getUint32(o+k*4, true));
+      else if(a.componentType===5121) out.push(dv.getUint8(o+k));
+      else if(a.componentType===5122) out.push(dv.getInt16(o+k*2, true));
+      else if(a.componentType===5120) out.push(dv.getInt8(o+k));
+      else throw new Error("GLB accessor componentType "+a.componentType+" unsupported");
+    }
+  }
+  return a.count;
+}
+function mat4FromTRS(t, r, s){
+  let x=r[0], y=r[1], z=r[2], w=r[3];
+  let x2=x+x, y2=y+y, z2=z+z;
+  let xx=x*x2, xy=x*y2, xz=x*z2, yy=y*y2, yz=y*z2, zz=z*z2, wx=w*x2, wy=w*y2, wz=w*z2;
+  let sx=s[0], sy=s[1], sz=s[2];
+  return [
+    (1-(yy+zz))*sx, (xy+wz)*sx, (xz-wy)*sx, 0,
+    (xy-wz)*sy, (1-(xx+zz))*sy, (yz+wx)*sy, 0,
+    (xz+wy)*sz, (yz-wx)*sz, (1-(xx+yy))*sz, 0,
+    t[0], t[1], t[2], 1
+  ];
+}
+function mat4Mul(a, b){
+  let o = new Array(16).fill(0);
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++) o[c*4+r]+=a[k*4+r]*b[c*4+k];
+  return o;
+}
+function mat4Apply(m, v){
+  return [
+    m[0]*v[0]+m[4]*v[1]+m[8]*v[2]+m[12],
+    m[1]*v[0]+m[5]*v[1]+m[9]*v[2]+m[13],
+    m[2]*v[0]+m[6]*v[1]+m[10]*v[2]+m[14]
+  ];
+}
+function parseGLB(buf){
+  if(!(buf instanceof ArrayBuffer)) throw new Error("GLB data is not an ArrayBuffer");
+  if(buf.byteLength < 20) throw new Error("GLB too small");
+  if(buf.byteLength > MESH_MAX_GLB_BYTES) throw new Error("GLB over 8 MB");
+  let dv = new DataView(buf);
+  if(dv.getUint32(0,true)!==0x46546C67) throw new Error("Not a GLB file (bad magic)");
+  if(dv.getUint32(4,true)!==2) throw new Error("GLB version is not 2");
+  let off = 12, json = null, bin = null;
+  while(off+8 <= buf.byteLength){
+    let clen = dv.getUint32(off,true), ctype = dv.getUint32(off+4,true), start = off+8;
+    if(start+clen > buf.byteLength) throw new Error("GLB chunk overruns file");
+    if(ctype===0x4E4F534A) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, start, clen)));
+    else if(ctype===0x004E4942) bin = new Uint8Array(buf, start, clen);
+    off = start + clen;
+  }
+  if(!json || !bin) throw new Error("GLB is missing its JSON or BIN chunk");
+  let tris = [];
+  let meshes = json.meshes||[], nodes = json.nodes||[], mats = json.materials||[];
+  function nodeMatrix(n){
+    if(n.matrix) return n.matrix.slice();
+    return mat4FromTRS(n.translation||[0,0,0], n.rotation||[0,0,0,1], n.scale||[1,1,1]);
+  }
+  function walk(ni, parent){
+    let n = nodes[ni]; if(!n) return;
+    let m = parent ? mat4Mul(parent, nodeMatrix(n)) : nodeMatrix(n);
+    if(n.mesh != null && meshes[n.mesh]){
+      for(let prim of meshes[n.mesh].primitives||[]){
+        if(prim.mode != null && prim.mode !== 4) continue; // triangles only
+        if(prim.attributes.POSITION == null) continue;
+        let pos = []; glbReadAccessor(json, bin, prim.attributes.POSITION, pos);
+        let idx = null;
+        if(prim.indices != null){ idx = []; glbReadAccessor(json, bin, prim.indices, idx); }
+        let col = [1,1,1];
+        if(prim.material != null && mats[prim.material] && mats[prim.material].pbrMetallicRoughness && mats[prim.material].pbrMetallicRoughness.baseColorFactor){
+          let f = mats[prim.material].pbrMetallicRoughness.baseColorFactor;
+          col = [f[0], f[1], f[2]];
+        }
+        let tri = new Float32Array((idx ? idx.length : pos.length/3) * 3);
+        let w = 0;
+        let push = vi => { let p = mat4Apply(m, [pos[vi*3], pos[vi*3+1], pos[vi*3+2]]); tri[w++]=p[0]; tri[w++]=p[1]; tri[w++]=p[2]; };
+        if(idx){ for(let i=0;i<idx.length;i++) push(idx[i]); }
+        else { for(let i=0;i<pos.length/3;i++) push(i); }
+        tris.push({pos:tri, color:col});
+      }
+    }
+    (n.children||[]).forEach(c=>walk(c, m));
+  }
+  let scene = (json.scenes||[])[json.scene||0] || {nodes:[]};
+  (scene.nodes||[]).forEach(n=>walk(n, null));
+  if(!tris.length) throw new Error("GLB has no triangle geometry");
+  let mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9], total=0;
+  for(let t of tris){ total += t.pos.length/3; for(let i=0;i<t.pos.length;i+=3){ for(let k=0;k<3;k++){ mn[k]=Math.min(mn[k],t.pos[i+k]); mx[k]=Math.max(mx[k],t.pos[i+k]); } } }
+  let cx=(mn[0]+mx[0])/2, cz=(mn[2]+mx[2])/2, sc=1/Math.max(1e-6, Math.max(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]));
+  for(let t of tris){ for(let i=0;i<t.pos.length;i+=3){ t.pos[i]=(t.pos[i]-cx)*sc; t.pos[i+1]=(t.pos[i+1]-mn[1])*sc; t.pos[i+2]=(t.pos[i+2]-cz)*sc; } }
+  return {tris, triCount: total, vertCount: total*3};
+}
+// Fetch a library GLB for a kind, with ONE retry on failure, then it
+// stays failed for the session and the procedural build renders instead.
+// A mesh failure never fails the level.
+function fetchMeshGLB(kind){
+  let entry = MESH_LIBRARY[kind];
+  if(!entry) return Promise.reject(new Error("No free library model for kind "+kind));
+  let rec = MESH_GLB_CACHE.get(kind);
+  if(rec && rec.state==="ready") return Promise.resolve(rec.data);
+  if(rec && rec.state==="loading") return rec.promise;
+  if(rec && rec.state==="failed") return Promise.reject(new Error(rec.error||"Library pull failed"));
+  let attempt = (n)=>{
+    return fetch(entry.url, {mode:"cors"}).then(async r=>{
+      if(!r.ok) throw new Error("Library fetch HTTP "+r.status);
+      let data = parseGLB(await r.arrayBuffer());
+      MESH_GLB_CACHE.set(kind, {state:"ready", data, tries:n});
+      return data;
+    }).catch(e=>{
+      if(n < 2) return new Promise(res=>setTimeout(()=>res(attempt(n+1)), 1500));
+      MESH_GLB_CACHE.set(kind, {state:"failed", error:e.message, tries:n});
+      throw e;
+    });
+  };
+  let p = attempt(1);
+  MESH_GLB_CACHE.set(kind, {state:"loading", promise:p, tries:1});
+  return p;
+}
+function drawGLBMesh(mvp, kind){
+  let rec = MESH_GLB_CACHE.get(kind);
+  if(!rec || rec.state!=="ready") return false;
+  let g = meshGLBBuffers[kind];
+  if(!g){
+    try{
+      let interleaved = [];
+      let tris = [];
+      for(let t of rec.data.tris){
+        let start = interleaved.length/5;
+        for(let i=0;i<t.pos.length;i+=3){ interleaved.push(t.pos[i],t.pos[i+1],t.pos[i+2],0,0); }
+        tris.push({start, count:t.pos.length/3, color:t.color});
+      }
+      let buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(interleaved), gl.STATIC_DRAW);
+      g = meshGLBBuffers[kind] = {buf, tris};
+    }catch(e){ return false; }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, g.buf);
+  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,3,gl.FLOAT,false,20,0);
+  gl.enableVertexAttribArray(aT); gl.vertexAttribPointer(aT,2,gl.FLOAT,false,20,12);
+  gl.uniformMatrix4fv(uM,false,new Float32Array(mvp));
+  gl.uniform1f(uUse,0);
+  for(let t of g.tris){
+    gl.uniform3fv(uC, t.color);
+    gl.drawArrays(gl.TRIANGLES, t.start, t.count);
+  }
+  // Restore the shared cube buffer + attrib pointers for drawCube.
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuf);
+  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP,3,gl.FLOAT,false,20,0);
+  gl.enableVertexAttribArray(aT); gl.vertexAttribPointer(aT,2,gl.FLOAT,false,20,12);
+  return true;
+}
+function drawMeshParts(vp, cx, cz, scale, parts){
+  for(let pt of parts){
+    drawCube(mul(vp, model(cx+pt.dx*scale, pt.dy*scale, cz+pt.dz*scale, pt.sx*scale, pt.sy*scale, pt.sz*scale)), hexC(pt.c));
+  }
+}
+// Place a mesh prop near the player (same spot logic as placeProp).
+function placeMeshProp(kind, source, size){
+  if(!spec) return null;
+  normalize(spec);
+  let gx=Math.floor(G?G.px:spec.playerStart.x), gy=Math.floor(G?G.py:spec.playerStart.y);
+  let spots=[[gx+2,gy],[gx,gy+2],[gx-2,gy],[gx,gy-2],[spec.playerStart.x+1,spec.playerStart.y],[spec.goal.x-1,spec.goal.y]];
+  let spot=spots.find(([x,y])=>spec.map[y] && spec.map[y][x]===".") || [spec.playerStart.x+1,spec.playerStart.y];
+  let ms = sanitizeMeshSpec({id:"u"+Date.now(), name:kind.charAt(0).toUpperCase()+kind.slice(1), kind, source, size, x:spot[0], y:spot[1], colors:{}, seed:Date.now()%100000}, spec.map[0].length, spec.map.length);
+  if(!ms) return null;
+  let prop={id:"p"+ms.id, model:ms.name, x:ms.x, y:ms.y, scale:ms.size, rot:0, color:"#ff7ab6", mesh:ms};
+  spec.props.push(prop); selectedProp=prop;
+  refreshPropSelect(); drawEditor(); draw();
+  return prop;
+}
+let _ma=$("meshAdd"); if(_ma)_ma.onclick=()=>{
+  let p=placeMeshProp($("meshKind").value, $("meshSource").value, +$("meshSize").value);
+  if($("meshStatus")) $("meshStatus").innerHTML = p
+    ? '<span class="ok">Added '+p.model+' ('+p.mesh.source+') at '+p.x+','+p.y+' — press Play (True 3D shows the real mesh).</span>'
+    : '<span class="err">No level loaded yet — Generate or Play first.</span>';
+};
+let _mt=$("meshTestLib"); if(_mt)_mt.onclick=async()=>{
+  let kind=$("meshKind").value, entry=MESH_LIBRARY[kind];
+  if($("meshStatus")) $("meshStatus").textContent="Pulling "+(entry?entry.name:kind)+" from Poly Pizza…";
+  try{
+    let d=await fetchMeshGLB(kind);
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="ok">Library pull OK: '+entry.name+' by '+entry.creator+' (CC0) — '+entry.bytes+' bytes, '+d.triCount+' triangles. Add it as a Library mesh and play in True 3D.</span>';
+    draw();
+  }catch(e){
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="err">Library pull failed: '+e.message+' — the procedural '+kind+' still works offline.</span>';
+  }
+};
 // ---------- art / audio ----------
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
 let musicTimer=null;let musicPreview=false;
@@ -1731,7 +2202,7 @@ function draw(){
   if(!(G && G.won)) $("hud").textContent=hudLine();
 }
 function updateScoreboard(){let _sb=$("scoreboard");if(!_sb||!spec||!G)return;let _bs=JSON.parse(localStorage.getItem("ff_best_score_"+(spec.title||""))||"null"),_bt=JSON.parse(localStorage.getItem("ff_best_"+(spec.title||""))||"null");_sb.textContent="Scoreboard · Score "+(G.score||0)+" · Kills "+G.kills+" · Best score "+(_bs?_bs.score:"—")+" · Best time "+(_bt?_bt.time+"s":"—");}
-function hudText(){updateScoreboard();return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Score ${(G.score||0)} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}` }
+function hudText(){updateScoreboard();let mc=(spec.props||[]).filter(p=>p.mesh).length;return`${spec.title} · ${spec.engine} · HP ${Math.max(0,G.hp|0)} · Ammo ${G.ammo} · Score ${(G.score||0)} · Kills ${G.kills} · Enemies ${G.active.filter(x=>x.alive).length}`+(mc?" · Meshes "+mc:"")}
 function colors(){return worldColors().wall}
 function texPixels(img){
   if(img._px) return img._px;
@@ -1977,7 +2448,7 @@ function initGL(){
 // rebuilds it; on restore, clear the failure and redraw. The gl
 // object itself is kept: after a restore it becomes usable again.
 if(GLC){
-  GLC.addEventListener("webglcontextlost", e => { e.preventDefault(); glReady = false; prog = null; wallGLTex = null; wallGLTexFor = null; });
+  GLC.addEventListener("webglcontextlost", e => { e.preventDefault(); glReady = false; prog = null; wallGLTex = null; wallGLTexFor = null; if(typeof MESH_GLB_CACHE!=="undefined") MESH_GLB_CACHE.clear(); meshGLBBuffers = {}; });
   GLC.addEventListener("webglcontextrestored", () => { glFailed = ""; draw(); });
 }
 // Test WebGL button (next to the engine dropdown): proves on-screen
@@ -2028,6 +2499,7 @@ function wallGLTexture(){
 }
 function draw3D(){
   if(!initGL()) return false;
+  window.__meshStats={procedural:0,library:0};
   GLC.style.display="block"; cv.style.visibility="hidden";
   gl.viewport(0,0,960,540); gl.enable(gl.DEPTH_TEST);
   let st=worldColors(), sky=hexC(st.skyColor);
@@ -2046,7 +2518,24 @@ function draw3D(){
   }));
   G.active.forEach(e=>{if(e.alive){let _t=enemyTypeFor(e)||{};let _sz=(_t.size||1)*(e.boss?1.5:1);drawCube(mul(vp,model(e.x+.5,e.boss?0.25:0,e.y+.5,_sz,_sz*1.1,_sz)),hexC(_t.primaryColor||st.accentColor));}});
   (spec.npcs||[]).forEach(n=>drawCube(mul(vp,model(n.x+.5,0,n.y+.5,0.55,0.7,0.55)),[1,1,1]));
-  (spec.props||[]).forEach(p=>drawCube(mul(vp,model(p.x+.5,0,p.y+.5,p.scale||1,(p.scale||1)*0.9,p.scale||1)),hexC(p.color||st.accentColor)));
+  (spec.props||[]).forEach(p=>{
+    let sc=p.scale||1, cx=p.x+.5, cz=p.y+.5;
+    if(p.mesh){
+      if(p.mesh.source==="library"){
+        let rec=MESH_GLB_CACHE.get(p.mesh.kind);
+        if(!rec) fetchMeshGLB(p.mesh.kind).catch(()=>{});
+        else if(rec.state==="ready"){
+          if(drawGLBMesh(mul(vp,model(cx,0,cz,sc,sc,sc)), p.mesh.kind)){ window.__meshStats.library++; return; }
+        }
+        // Not ready, failed, or draw failed: procedural fallback, same kind.
+      }
+      let parts=p.mesh.parts || (p.mesh.parts=buildProceduralMesh(p.mesh.kind, p.mesh.colors||{}, p.mesh.seed||1, p.mesh.variant));
+      drawMeshParts(vp, cx, cz, sc, parts);
+      window.__meshStats.procedural++;
+      return;
+    }
+    drawCube(mul(vp,model(cx,0,cz,sc,sc*0.9,sc)),hexC(p.color||st.accentColor));
+  });
   return true;
 }
 function loop(ts){
@@ -2129,7 +2618,7 @@ let lines=(n.dialogue&&n.dialogue.length)?n.dialogue:[n.greeting];$("npcLog").te
 // ---------- Bit conversational editing + Remix ----------
 async function bitEdit(instr){let old=JSON.stringify(spec);bitCtx.push(instr);
 try{if(!localStorage.getItem(selectedProvider().keySlot)) throw new Error("Bit editing needs a saved key for the selected provider ("+selectedProvider().label+"). No offline invention.");
-let txt=await llmProvider(selectedProvider(), [{role:"system",content:"Revise this game spec JSON per instruction. Return ONLY full JSON. Preserve the manifest structure (world, weapon, enemyTypes with pixelRows, NPC dialogue). Do not invent new enemy types, weapons or palettes unless the instruction asks for them."},{role:"user",content:"SPEC:"+old+"\nINSTRUCTION:"+instr+"\nHISTORY:"+bitCtx.join(" | ")}]);let s=repair(parseJSON(txt));if(validate(s))throw new Error(validate(s));loadSpec(s,"bit");$("bitLog").textContent="Bit: Applied — "+instr;return}catch(e){$("bitLog").textContent="Bit: Kept your current level. Reason: "+e.message}}
+let txt=await llmProvider(selectedProvider(), [{role:"system",content:"Revise this game spec JSON per instruction. Return ONLY full JSON. Preserve the manifest structure (world, weapon, enemyTypes with pixelRows, NPC dialogue, meshes and props). Do not invent new enemy types, weapons or palettes unless the instruction asks for them."},{role:"user",content:"SPEC:"+old+"\nINSTRUCTION:"+instr+"\nHISTORY:"+bitCtx.join(" | ")}]);let s=repair(parseJSON(txt));if(validate(s))throw new Error(validate(s));loadSpec(s,"bit");$("bitLog").textContent="Bit: Applied — "+instr;return}catch(e){$("bitLog").textContent="Bit: Kept your current level. Reason: "+e.message}}
 // ---------- Auto-playtest bot (report only) ----------
 $("testBtn").onclick=()=>{let before=JSON.stringify(spec);normalize(spec);let p=spec.playerStart,g=spec.goal,seen=new Set([p.x+","+p.y]),q=[p];while(q.length){let c=q.shift();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{let x=c.x+dx,y=c.y+dy,k=x+","+y;if(spec.map[y]&&spec.map[y][x]!=="#"&&!seen.has(k)){seen.add(k);q.push({x,y})}})}
 let unreachable=0;spec.enemies.concat(spec.pickups).forEach(e=>{if(!seen.has(e.x+","+e.y))unreachable++});let win=spec.engine==="side"?true:seen.has(g.x+","+g.y);let dist=Math.abs(g.x-p.x)+Math.abs(g.y-p.y);
@@ -2468,7 +2957,7 @@ let _pw=$("paintWall"); if(_pw)_pw.onclick=()=>{
   window.CUSTOM_WALL=pc; if($("importStatus"))$("importStatus").textContent="Your painting will be used on walls - press Play.";};
 function drawPropsBillboard(B,w,h){
   (spec.props||[]).forEach(p=>{
-    let m=MODELS[p.model]; if(!m) return;
+    let m=MODELS[p.model]; if(!m && !p.mesh) return;
     let d=Math.hypot(p.x+.5-G.px,p.y+.5-G.py);
     let ang=Math.atan2(p.y+.5-G.py,p.x+.5-G.px)-G.angle;
     while(ang>Math.PI)ang-=Math.PI*2;while(ang<-Math.PI)ang+=Math.PI*2;
@@ -2476,8 +2965,8 @@ function drawPropsBillboard(B,w,h){
     let s=Math.min(200,(140/d))*(p.scale||1);
     let sx=w/2+Math.tan(ang)*(w/.9)-s/2, sy=h/2-s/2+12;
     B.save();B.translate(sx+s/2,sy+s/2);B.rotate((p.rot||0)*Math.PI/180*.1);B.translate(-s/2,-s/2);
-    if(m.texture) B.drawImage(m.texture,0,0,s,s);
-    else if(m.billboard) B.drawImage(m.billboard,0,0,s,s);
+    if(m&&m.texture) B.drawImage(m.texture,0,0,s,s);
+    else if(m&&m.billboard) B.drawImage(m.billboard,0,0,s,s);
     else {B.fillStyle=p.color||"#ff7ab6";B.fillRect(0,0,s,s);}
     B.restore();
     B.fillStyle="#fff";B.font="7px monospace";B.fillText(p.model.replace(/_/g," ").slice(0,18),sx,sy-4);
