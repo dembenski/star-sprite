@@ -1058,7 +1058,7 @@ Return the complete manifest:
 // imported/BYOK model when one is cached. A mesh failure never fails
 // the level: a library pull retries once, then the procedural build of
 // the same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v71";
+const STAR_SPRITE_VERSION = "v72";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
@@ -1085,7 +1085,7 @@ const MESH_LIBRARY = {
 const MESH_SOURCES = {
   procedural:{label:"Procedural (offline)", kind:"procedural", vendor:"Star Sprite", licence:"Built-in", note:"Free, no key, no internet."},
   polypizza:{label:"Poly Pizza library (CC0)", kind:"library", vendor:"Poly Pizza", licence:"CC0", note:"12 real CC0 models, no key."},
-  triposr:{label:"TripoSR library", kind:"library", vendor:"VAST", licence:"MIT", base:"meshes/triposr/", note:"AI image-to-3D (TripoSR, MIT), pre-generated offline. Filling now."},
+  triposr:{label:"TripoSR library", kind:"library", vendor:"VAST", licence:"MIT", base:"meshes/triposr/", note:"12 real models, pre-generated offline on CPU."},
   triposg:{label:"TripoSG library", kind:"library", vendor:"VAST", licence:"MIT", base:"meshes/triposg/", note:"AI image-to-3D (TripoSG, MIT), GLB out. Pre-generate on a GPU machine."},
   hunyuan:{label:"Hunyuan3D library", kind:"library", vendor:"Tencent", licence:"Tencent Community Licence", base:"meshes/hunyuan3d/", note:"Best textured quality. Pre-generate on a GPU machine. Licence excludes EU/UK/South Korea."},
   instantmesh:{label:"InstantMesh library", kind:"library", vendor:"Tencent ARC", licence:"Apache-2.0", base:"meshes/instantmesh/", note:"Textured image-to-3D. Pre-generate on a GPU machine."},
@@ -1098,7 +1098,7 @@ const MESH_SOURCES = {
 // Pre-generated AI model libraries, shipped with the app. Each entry is
 // kind -> {url, bytes}. Empty until the pre-generation run fills it —
 // missing kinds fall back to procedural, so an empty library is safe.
-const MESH_MODEL_LIBS = {triposr:{}, triposg:{}, hunyuan:{}, instantmesh:{}, step1x3d:{}};
+const MESH_MODEL_LIBS = {triposr:{tree:{url:"meshes/triposr/tree.glb",bytes:479356},rock:{url:"meshes/triposr/rock.glb",bytes:616364},chest:{url:"meshes/triposr/chest.glb",bytes:1001212},crystal:{url:"meshes/triposr/crystal.glb",bytes:559496},mushroom:{url:"meshes/triposr/mushroom.glb",bytes:459420},tower:{url:"meshes/triposr/tower.glb",bytes:447644},lamp:{url:"meshes/triposr/lamp.glb",bytes:447068},house:{url:"meshes/triposr/house.glb",bytes:477756},barrel:{url:"meshes/triposr/barrel.glb",bytes:840204},pillar:{url:"meshes/triposr/pillar.glb",bytes:195020},bush:{url:"meshes/triposr/bush.glb",bytes:804492},statue:{url:"meshes/triposr/statue.glb",bytes:157156}}, triposg:{}, hunyuan:{}, instantmesh:{}, step1x3d:{}};
 function meshSourceDef(s){ return MESH_SOURCES[s] || MESH_SOURCES.procedural; }
 function meshLibraryUrl(source, kind){
   if(source==="polypizza"){ let e=MESH_LIBRARY[kind]; return e ? e.url : null; }
