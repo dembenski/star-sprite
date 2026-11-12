@@ -28,12 +28,15 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 #weaponView{width:100%;height:auto;background:transparent;border-radius:0}
 #weaponName{position:absolute;right:16px;bottom:118px;z-index:3;padding:5px 9px;border-radius:999px;background:rgba(10,6,18,.72);color:#fff;font-size:13px;font-weight:700;pointer-events:none}
 #crossText{display:block;text-align:center;line-height:34px;font-size:32px;font-weight:900;text-shadow:0 0 8px #000,0 2px 5px #000}
+/* Standalone HTML export: hide the maker UI, keep only the game. */
+body.exported-standalone header,body.exported-standalone #providerCard,body.exported-standalone .tabs,body.exported-standalone #makeTab,body.exported-standalone #advTab,body.exported-standalone #feedCard{display:none}
+#exportBanner{background:#2a1030;border:2px solid #ff5fa2;border-radius:12px;padding:10px 14px;margin:12px 0}
 </style></head><body>
 <header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v69</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
-<div class="card"><div class="row"><b>Provider:</b>
+<div class="card" id="providerCard"><div class="row"><b>Provider:</b>
 <select id="provider" aria-label="Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)">
 <option value="meta">Meta AI (Recommended)</option><option value="groq">Groq (Free backup)</option><option value="star">Star Sprite (Free, offline)</option></select>
 <span>Meta AI (Recommended) / Groq (Free backup) / Star Sprite (Free, offline)</span>
@@ -56,8 +59,8 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
 <label><input type="checkbox" id="boss"> Boss mode</label>
 <button id="generate">Generate</button>
-<button id="shuffle" class="alt">Shuffle prompt</button><button id="demo" class="alt">Built-in demo map</button></div>
-<div id="status"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div><div id="artPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #ffd84d;border-radius:12px;padding:12px 16px;max-width:420px;text-align:center"><b>High-res textures take a few minutes</b><br>Your game plays right away with painted textures. The high-res Meta textures load in one by one after that — walls and floor first, weapon last. Keep playing while they arrive.<br><button onclick="closeArtPopup()" style="margin-top:8px">Close</button></div><div class="card"><h3>MIDI Sound Generator</h3><p><small>When Music is on, every game plays its own title-seeded tune. Tweak the style and tempo here — games pick it up as they load.</small></p><div class="row"><label>Style <select id="musicStyle"><option value="cheerful">Cheerful</option><option value="adventure">Adventure</option><option value="spooky">Spooky</option><option value="chill">Chill</option><option value="retro">Retro</option></select></label><label>Tempo <input type="range" id="musicTempo" min="200" max="700" step="20" value="420"> <span id="musicTempoLabel">420 ms per note</span></label><button class="alt" id="musicPlay">Play preview</button><button class="alt" id="musicStop">Stop</button><button class="alt" id="musicSurprise">Surprise me</button></div><div id="musicStatus"><small></small></div></div></section>
+<button id="shuffle" class="alt">Shuffle prompt</button><button id="demo" class="alt">Built-in demo map</button><button id="exportHtml" class="alt">Export standalone .html</button></div>
+<div id="status"></div><div id="exportStatus"></div><div id="artBarWrap" style="display:none;margin-top:8px"><div style="background:#2a1030;border:2px solid #ff5fa2;border-radius:999px;overflow:hidden"><div id="artBar" style="height:18px;width:0%;background:#ff2f86;transition:width .3s"></div></div><div id="artBarLabel" style="font-size:13px"></div></div><div id="artPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #ffd84d;border-radius:12px;padding:12px 16px;max-width:420px;text-align:center"><b>High-res textures take a few minutes</b><br>Your game plays right away with painted textures. The high-res Meta textures load in one by one after that — walls and floor first, weapon last. Keep playing while they arrive.<br><button onclick="closeArtPopup()" style="margin-top:8px">Close</button></div><div class="card"><h3>MIDI Sound Generator</h3><p><small>When Music is on, every game plays its own title-seeded tune. Tweak the style and tempo here — games pick it up as they load.</small></p><div class="row"><label>Style <select id="musicStyle"><option value="cheerful">Cheerful</option><option value="adventure">Adventure</option><option value="spooky">Spooky</option><option value="chill">Chill</option><option value="retro">Retro</option></select></label><label>Tempo <input type="range" id="musicTempo" min="200" max="700" step="20" value="420"> <span id="musicTempoLabel">420 ms per note</span></label><button class="alt" id="musicPlay">Play preview</button><button class="alt" id="musicStop">Stop</button><button class="alt" id="musicSurprise">Surprise me</button></div><div id="musicStatus"><small></small></div></div></section>
 
 <section id="advTab" class="card" style="display:none">
 <div class="grid"><div>
@@ -365,7 +368,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <details><summary>Self-test checklist</summary><small>✓ Home loads · ✓ Make game default · ✓ 4 engines playable · ✓ Editor edits survive Play · ✓ Feed + shared links boot · ✓ NPCs never silent · ✓ Bit edit applies or keeps old level with reason · ✓ Playtest reports without editing · □ Capture demo video showing Meta generation (recipe, not code) · ✓ Fresh-eyes: not mistakable for any other product — original name, layout, wording, Bit identity. · Wonder Studio previews before Apply. · First-run tour shows once, re-opens from Tour button. · Prompt starter chips fill the prompt box. · Genre picker (36 genres) shapes Generate. · True 3D walls use the game wall texture (flat fallback if tainted).</small></details>
 </div></div></section>
 
-<div class="card"><div id="hud">Load a demo or generate a level.</div>
+<div class="card" id="gameCard"><div id="hud">Load a demo or generate a level.</div>
 <div class="stage">
   <canvas id="game" width="960" height="540"></canvas>
   <canvas id="gameGL" width="960" height="540" style="display:none;position:absolute;inset:0;width:960px;height:540px;max-width:100%"></canvas>
@@ -378,7 +381,7 @@ uploads, and Layout Editor maps. Nothing is generated online.</small></p>
 <div class="row"><button id="playBtn">▶ Play / Restart</button><span><small>PC: WASD/arrows move · Mouse drag / pointer-lock look · Click/Space fire · Shift run · E talk · R reload · Side: A/D + W/Space jump. Touch: drag the game to look, tap to fire, joystick moves. Reach the goal ★.</small></span></div>
 <div id="quest"></div><div id="best"></div><div id="scoreboard"></div></div>
 
-<div class="card"><h3>Show-your-work feed — prompt → spec → result</h3><div id="feed"></div></div>
+<div class="card" id="feedCard"><h3>Show-your-work feed — prompt → spec → result</h3><div id="feed"></div></div>
 </div>
 <script>
 "use strict";
@@ -1055,7 +1058,7 @@ Return the complete manifest:
 // imported/BYOK model when one is cached. A mesh failure never fails
 // the level: a library pull retries once, then the procedural build of
 // the same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v70";
+const STAR_SPRITE_VERSION = "v71";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
@@ -1412,6 +1415,7 @@ function parseGLB(buf){
 // instead. A mesh failure never fails the level. Imported and BYOK models
 // are already in the cache — there is nothing to fetch for them.
 function fetchMeshGLB(kind, source){
+  if(window.__STAR_SPRITE_EXPORTED__) return Promise.reject(new Error("Offline export: library GLB not embedded — procedural mesh used instead."));
   source = source || "polypizza";
   let key = source+":"+kind;
   let def = MESH_SOURCES[source];
@@ -3843,6 +3847,7 @@ function restoreFreeTex(){
     img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + slot + " did not load (needs internet). Keeping the current look."; };
     var freeSrc = resolveFreeTexURL(entry.url);
     if(!freeSrc) return;
+    if(window.__STAR_SPRITE_EXPORTED__ && freeSrc.indexOf("http")===0) return;
     img.src = freeSrc;
   });
   Object.entries(spec.freeTex.enemyByType || {}).forEach(([typeId, entry])=>{
@@ -3852,6 +3857,7 @@ function restoreFreeTex(){
     img.onerror = ()=>{ if(spec!==mySpec) return; $("freeTexStatus").textContent = "Free texture for " + typeId + " did not load (needs internet). Keeping the current look."; };
     var freeSrc = resolveFreeTexURL(entry.url);
     if(!freeSrc) return;
+    if(window.__STAR_SPRITE_EXPORTED__ && freeSrc.indexOf("http")===0) return;
     img.src = freeSrc;
   });
 }
@@ -4311,11 +4317,61 @@ $("generate").onclick = async ()=>{
     }
   }
 };
-$("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};$("shuffle").onclick=()=>{$("prompt").value=EXAMPLE_PROMPTS[Math.random()*EXAMPLE_PROMPTS.length|0]};
+$("demo").onclick=()=>{loadSpec(demoSpec(),"demo","Built-in demo");renderFeedAdd("Built-in demo","demo")};
+// ---------- standalone HTML export (v70) ----------
+// Exports the CURRENTLY LOADED game as ONE self-contained .html file: the
+// whole engine (this document) + the game's manifest baked in as
+// window.__EXPORTED_SPEC__ + an offline flag. The exported file boots that
+// spec instead of the demo/shared link, hides the maker UI, never fetches
+// library GLBs (procedural meshes render instead -- the engine's designed
+// fallback) and never loads http(s) free textures (procedural look kept).
+// Everything else in a spec is already offline-safe by design: enemy
+// sprites are pixelRows, wall/floor art is procedural canvas paint, and
+// savedArt/customArt are data: URLs, which ride along in the manifest.
+// snapshotSavedArt() first captures any Meta/Mixer art as data: URLs.
+function exportStandaloneHTML(){
+  let st=$("exportStatus");
+  if(!spec){ if(st) st.innerHTML='<span class="err">Load or generate a game first, then export it.</span>'; return null; }
+  try{ if(typeof snapshotSavedArt==="function") snapshotSavedArt(); }catch(e){}
+  let notes=[];
+  let ft=spec.freeTex||{};
+  Object.keys(ft).forEach(slot=>{ if(slot==="enemyByType") return; let e=ft[slot]; if(e&&e.url&&/^https?:/.test(e.url)) notes.push("Poly Haven texture on "+slot+" needs internet \u2014 exported copy uses its procedural look instead"); });
+  Object.keys(ft.enemyByType||{}).forEach(tid=>{ let e=ft.enemyByType[tid]; if(e&&e.url&&/^https?:/.test(e.url)) notes.push("Poly Haven texture on enemy "+tid+" needs internet \u2014 exported copy uses its procedural look instead"); });
+  (spec.props||[]).forEach(p=>{ if(!p.mesh) return; let def=(typeof MESH_SOURCES!=="undefined")?MESH_SOURCES[p.mesh.source]:null;
+    if(def&&def.kind!=="procedural"){ let rec=(typeof MESH_GLB_CACHE!=="undefined")?MESH_GLB_CACHE.get(p.mesh.source+":"+p.mesh.kind):null;
+      if(!rec||rec.state!=="ready") notes.push("Mesh "+p.mesh.kind+" ("+p.mesh.source+") is not embedded \u2014 exported copy renders the procedural "+p.mesh.kind+" instead"); } });
+  let specJson=JSON.stringify(spec).replace(/<\//g,"<\\/");
+  // The live page renders the free-texture grid at boot (~6.6 MB of thumb
+  // cards, incl. Poly Haven CDN thumb URLs). It is volatile UI, not game
+  // data, so blank it for the snapshot and restore it right after -- the
+  // exported file stays ~engine-size and makes zero thumb requests offline.
+  let _grid=$("freeTexGrid"), _gridHTML=_grid?_grid.innerHTML:"";
+  if(_grid) _grid.innerHTML="";
+  // Same for transient popups: outerHTML captures live DOM state, so an
+  // open first-run tour popup would be baked in as visible. Hide both
+  // popups for the snapshot, restore them right after.
+  let _tp=$("tourPopup"), _tpD=_tp?_tp.style.display:"", _ap=$("artPopup"), _apD=_ap?_ap.style.display:"";
+  if(_tp) _tp.style.display="none"; if(_ap) _ap.style.display="none";
+  let html="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
+  if(_grid) _grid.innerHTML=_gridHTML;
+  if(_tp) _tp.style.display=_tpD; if(_ap) _ap.style.display=_apD;
+  let marker="<script>\n\"use strict\";";
+  if(html.indexOf(marker)<0){ if(st) st.innerHTML='<span class="err">Export failed: engine script marker not found \u2014 file not written.</span>'; return null; }
+  let boot='<script>window.__STAR_SPRITE_EXPORTED__=true;window.__EXPORTED_SPEC__='+specJson+';document.body.classList.add("exported-standalone");var _tp=document.getElementById("tourPopup");if(_tp)_tp.style.display="none";<\/script>\n';
+  let out=html.replace(marker, boot+marker);
+  let slug=(spec.title||"star-sprite-game").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"star-sprite-game";
+  let fname=slug+".standalone.html";
+  window.__lastExportHTML=out; window.__lastExportName=fname; window.__lastExportNotes=notes;
+  try{ let blob=new Blob([out],{type:"text/html"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }catch(e){}
+  if(st) st.innerHTML='<span class="ok">Exported '+fname+' ('+(out.length/1048576).toFixed(2)+' MB) \u2014 one file, plays offline, no server needed.</span>'+(notes.length?'<br><small>Offline notes: '+notes.join(" \u00b7 ")+'</small>':'<br><small>All art is procedural or embedded \u2014 nothing in this game needs the network.</small>');
+  return out;
+}
+$("exportHtml").onclick=()=>exportStandaloneHTML();$("shuffle").onclick=()=>{$("prompt").value=EXAMPLE_PROMPTS[Math.random()*EXAMPLE_PROMPTS.length|0]};
 // shared-link boot
 window.__booting = true;
-try{if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
+try{if(window.__EXPORTED_SPEC__){loadSpec(window.__EXPORTED_SPEC__,"exported",window.__EXPORTED_SPEC__.title||"Exported game")}else if(location.hash.startsWith("#level=")){let s=parseJSON(decodeURIComponent(escape(atob(location.hash.slice(7)))));loadSpec(s,"shared-link","Shared link")}else loadSpec(demoSpec(),"demo")}catch(e){loadSpec(demoSpec(),"demo");$("status").innerHTML='<span class="err">Broken shared link — demo map loaded instead.</span>'}
 window.__booting = false;
+if(window.__STAR_SPRITE_EXPORTED__){document.body.classList.add("exported-standalone");let b=document.createElement("div");b.id="exportBanner";b.innerHTML="<b>\u2605 "+(spec?spec.title:"Star Sprite")+" \u2014 standalone offline export</b><br><small>Plays with no server and no internet. PC: WASD/arrows move \u00b7 mouse drag to look \u00b7 click/Space fire \u00b7 E talk \u00b7 R reload. Reach the goal \u2605.</small>";let gc=$("gameCard");if(gc&&gc.parentNode)gc.parentNode.insertBefore(b,gc);}
 window.scrollTo(0, 0);
 // One demo only: clean old duplicates already saved in this browser.
 // Old v1 demo cards have a different map/hash than the v2 WOW demo, so
@@ -4327,6 +4383,6 @@ renderFeed();
 if($("hdMode")) setHiRes($("hdMode").checked);
 // v68 guided walkthrough: step-by-step incl. Advanced, shows once per browser, re-opens from the Tour button.
 if($("tourBtn")) $("tourBtn").onclick=()=>showTour(true);
-showTour(false);
+if(!window.__STAR_SPRITE_EXPORTED__) showTour(false);
 </script></body></html>
 <!-- SELF-TEST AT END OF FILE: fresh-eyes check done — home page, Bit chat panel, and generated games use original Michael Dembenski & Bit identity, original layout/wording, no competitor names/templates. Demo video must be captured separately showing Meta generation. -->
