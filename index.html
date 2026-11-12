@@ -31,8 +31,12 @@ small{opacity:.85}.grid{display:grid;grid-template-columns:1fr 340px;gap:12px}@m
 /* Standalone HTML export: hide the maker UI, keep only the game. */
 body.exported-standalone header,body.exported-standalone #providerCard,body.exported-standalone .tabs,body.exported-standalone #makeTab,body.exported-standalone #advTab,body.exported-standalone #feedCard{display:none}
 #exportBanner{background:#2a1030;border:2px solid #ff5fa2;border-radius:12px;padding:10px 14px;margin:12px 0}
+/* v73 voice-to-prompt: mic button next to the prompt box. */
+#micBtn.recording{background:#ff2f86;animation:micPulse 1s infinite}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 #ff2f8688}50%{box-shadow:0 0 0 8px #ff2f8600}}
+#voiceStatus{font-size:13px;min-height:18px}
 </style></head><body>
-<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v69</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v73</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -53,7 +57,7 @@ body.exported-standalone header,body.exported-standalone #providerCard,body.expo
 <div class="row tabs"><button id="tabMake" class="on">Make game</button><button id="tabAdv">Advanced</button><button id="tourBtn" class="alt">Tour</button></div><div id="tourPopup" style="display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#2a1840;border:2px solid #62d8ff;border-radius:12px;padding:12px 16px;max-width:440px;text-align:left"><b id="walkTitle">Welcome to Star Sprite</b><br><span id="walkBody"></span><br><span id="walkProgress" style="opacity:.8"></span><div style="margin-top:8px"><button id="walkBack" onclick="walkStep(-1)">Back</button> <button id="walkNext" onclick="walkStep(1)">Next</button> <button id="walkSkip" onclick="closeTour()">Skip tour</button> <button id="walkClose" onclick="closeTour()">Close</button></div></div>
 
 <section id="makeTab" class="card">
-<div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea></div><div class="row"><span>Try: </span><button class="alt" onclick="setStarter(0)">Candy rescue</button><button class="alt" onclick="setStarter(1)">Haunted dungeon</button><button class="alt" onclick="setStarter(2)">Pirate battle</button><button class="alt" onclick="setStarter(3)">Neon city</button><button class="alt" onclick="setStarter(4)">Wild west</button></div>
+<div class="row"><textarea id="prompt" rows="3" cols="70" placeholder="A candy kingdom side-scroller where a brave cupcake rescues the Lemon Star...">A candy castle rescue with sprinkles, custard blobs and a boss</textarea><button id="micBtn" class="alt" type="button" title="Speak your game idea" aria-label="Speak your game idea">🎤 Speak</button></div><div id="voiceStatus" class="voice-status"></div><div class="row"><span>Try: </span><button class="alt" onclick="setStarter(0)">Candy rescue</button><button class="alt" onclick="setStarter(1)">Haunted dungeon</button><button class="alt" onclick="setStarter(2)">Pirate battle</button><button class="alt" onclick="setStarter(3)">Neon city</button><button class="alt" onclick="setStarter(4)">Wild west</button></div>
 <div class="row"><select id="engineSel"><option value="fps">FPS 2.5D Raycaster</option><option value="top">Top-view Shooter</option><option value="side">Side-scroll Shooter</option><option value="3d">True 3D (WebGL)</option></select><select id="genreSel"><optgroup label="First-person (2.5D raycast)"><option value="fps">FPS - Classic shooter</option><option value="fps-zombie">FPS - Zombie survival</option><option value="fps-dungeon">FPS - Dungeon crawler</option><option value="fps-horror">FPS - Horror / haunted house</option><option value="fps-arena">FPS - Arena deathmatch</option><option value="fps-scifi">FPS - Sci-fi station shooter</option><option value="fps-western">FPS - Western shootout</option><option value="fps-cyber">FPS - Cyberpunk street shooter</option><option value="fps-pirate">FPS - Pirate ship raid</option></optgroup><optgroup label="Top-down"><option value="top">Top-down - Classic shooter</option><option value="top-twinstick">Top-down - Twin-stick arena</option><option value="top-dungeon">Top-down - Dungeon crawler</option><option value="top-zombie">Top-down - Zombie survival</option><option value="top-stealth">Top-down - Stealth infiltrator</option><option value="top-tank">Top-down - Tank battle</option><option value="top-survival">Top-down - Wilderness survival</option><option value="top-heist">Top-down - Heist crew</option><option value="top-alien">Top-down - Alien invasion</option></optgroup><optgroup label="Side-scroll"><option value="side">Side-scroll - Classic shooter</option><option value="side-run">Side-scroll - Run-and-gun</option><option value="side-space">Side-scroll - Space shooter</option><option value="side-jungle">Side-scroll - Jungle adventure</option><option value="side-castle">Side-scroll - Castle platformer</option><option value="side-robot">Side-scroll - Robot factory run</option><option value="side-snow">Side-scroll - Snow mountain climb</option><option value="side-haunted">Side-scroll - Haunted mansion</option><option value="side-sea">Side-scroll - Deep-sea dive</option></optgroup><optgroup label="True 3D"><option value="3d">3D - Classic shooter</option><option value="3d-dungeon">3D - Dungeon crawler</option><option value="3d-arena">3D - Arena deathmatch</option><option value="3d-horror">3D - Horror / haunted house</option><option value="3d-scifi">3D - Sci-fi station shooter</option><option value="3d-castle">3D - Castle siege</option><option value="3d-zombie">3D - Zombie survival</option><option value="3d-western">3D - Western shootout</option><option value="3d-cyber">3D - Cyberpunk street shooter</option></optgroup></select>
 <button class="alt" id="testGL" type="button">Test WebGL</button>
 <select id="diff"><option>Easy</option><option selected>Normal</option><option>Hard</option><option>Insane</option></select>
@@ -389,6 +393,60 @@ const $=id=>document.getElementById(id);
 const EXAMPLE_PROMPTS=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];
 const STARTER_PROMPTS=["A candy castle rescue: brave cupcake hero, custard blob enemies, a boss guarding the Lemon Star","A haunted dungeon crawl with skeleton knights, hidden treasure chests and a ghost boss","A pirate ship battle: cannon fights on deck, a treasure map and a kraken boss","A neon city chase with robot drones, laser gates and a chrome boss","A wild west showdown: bandits, a runaway train and a duel at high noon"];
 function setStarter(i){ if(STARTER_PROMPTS[i]) $("prompt").value=STARTER_PROMPTS[i]; }
+/* ---------- v73: voice-to-prompt — Web Speech API, free, in-browser, no keys, no network.
+   Mic button next to the prompt box: tap to listen, tap again to stop. Transcribed text
+   goes into the prompt box only — never auto-submits, the user edits it, then hits Generate.
+   Chrome/Edge only; other browsers get the button disabled with a tooltip. ---------- */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voiceRec = null, voiceListening = false, voiceBaseText = "", voiceFinalText = "";
+function voiceStatus(msg, isErr){ const el = $("voiceStatus"); if(!el) return; el.textContent = msg || ""; el.classList.toggle("err", !!isErr); }
+function voiceSetListening(on){
+  voiceListening = on;
+  const b = $("micBtn"); if(!b) return;
+  b.classList.toggle("recording", on);
+  b.textContent = on ? "⏹ Stop" : "🎤 Speak";
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+}
+function voiceToggle(){
+  if(!SpeechRecognition){ voiceStatus("Voice input needs Chrome or Edge — this browser doesn't support it.", true); return; }
+  if(voiceListening){ try{ voiceRec.stop(); }catch(e){} return; }
+  try{
+    voiceRec = new SpeechRecognition();
+    voiceRec.lang = "en-US";
+    voiceRec.interimResults = true;
+    voiceRec.continuous = true;
+    voiceBaseText = $("prompt").value;
+    voiceFinalText = "";
+    voiceRec.onresult = function(ev){
+      let interim = "";
+      for(let i = ev.resultIndex; i < ev.results.length; i++){
+        const t = ev.results[i][0].transcript;
+        if(ev.results[i].isFinal) voiceFinalText += t;
+        else interim += t;
+      }
+      const base = voiceBaseText ? voiceBaseText.replace(/\s+$/, "") + " " : "";
+      $("prompt").value = base + voiceFinalText + interim;
+    };
+    voiceRec.onerror = function(ev){
+      voiceSetListening(false);
+      if(ev.error === "not-allowed" || ev.error === "service-not-allowed") voiceStatus("Mic blocked — allow microphone access in the browser address bar, then tap Speak again.", true);
+      else if(ev.error === "no-speech") voiceStatus("Didn't catch that — tap Speak and try again.", true);
+      else if(ev.error === "audio-capture") voiceStatus("No microphone found on this device.", true);
+      else voiceStatus("Voice input stopped (" + ev.error + ").", true);
+    };
+    voiceRec.onend = function(){ if(voiceListening){ voiceSetListening(false); voiceStatus(""); } };
+    voiceRec.start();
+    voiceSetListening(true);
+    voiceStatus("Listening… speak your game idea, tap Stop when done.");
+  }catch(e){ voiceSetListening(false); voiceStatus("Couldn't start voice input: " + e.message, true); }
+}
+(function voiceInit(){
+  const b = $("micBtn"); if(!b) return;
+  if(!SpeechRecognition){ b.disabled = true; b.title = "Voice input needs Chrome or Edge"; }
+  b.addEventListener("click", voiceToggle);
+  /* If the user types while listening, their edit becomes the new base text. */
+  $("prompt").addEventListener("input", function(){ if(voiceListening){ voiceBaseText = $("prompt").value; voiceFinalText = ""; } });
+})();
 var GENRES=[
 {id:"fps",label:"FPS - Classic shooter",engine:"fps",flavor:""},
 {id:"fps-zombie",label:"FPS - Zombie survival",engine:"fps",flavor:"GENRE: Zombie survival. Enemies are zombies and undead horrors, the goal is usually eliminate-all, and the theme, enemy looks, and quest text should feel like a zombie outbreak."},
@@ -1058,7 +1116,7 @@ Return the complete manifest:
 // imported/BYOK model when one is cached. A mesh failure never fails
 // the level: a library pull retries once, then the procedural build of
 // the same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v72";
+const STAR_SPRITE_VERSION = "v73";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
