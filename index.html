@@ -34,9 +34,9 @@ body.exported-standalone header,body.exported-standalone #providerCard,body.expo
 /* v73 voice-to-prompt: mic button next to the prompt box. */
 #micBtn.recording{background:#ff2f86;animation:micPulse 1s infinite}
 @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 #ff2f8688}50%{box-shadow:0 0 0 8px #ff2f8600}}
-#voiceStatus{font-size:13px;min-height:18px}
+#voiceStatus{font-size:13px;min-height:18px}#voiceStatus.err{color:#ff8fb2}
 </style></head><body>
-<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v73.1</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v74</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -393,12 +393,18 @@ const $=id=>document.getElementById(id);
 const EXAMPLE_PROMPTS=["A berry forest maze guarded by mint wraiths","A chocolate vault boss rush","A lemon-sky floating bakery quest","A sugar dungeon rescue"];
 const STARTER_PROMPTS=["A candy castle rescue: brave cupcake hero, custard blob enemies, a boss guarding the Lemon Star","A haunted dungeon crawl with skeleton knights, hidden treasure chests and a ghost boss","A pirate ship battle: cannon fights on deck, a treasure map and a kraken boss","A neon city chase with robot drones, laser gates and a chrome boss","A wild west showdown: bandits, a runaway train and a duel at high noon"];
 function setStarter(i){ if(STARTER_PROMPTS[i]) $("prompt").value=STARTER_PROMPTS[i]; }
-/* ---------- v73: voice-to-prompt — Web Speech API, free, in-browser, no keys, no network.
-   Mic button next to the prompt box: tap to listen, tap again to stop. Transcribed text
-   goes into the prompt box only — never auto-submits, the user edits it, then hits Generate.
-   Chrome/Edge only; other browsers get an inline explanation (Quest: use the keyboard mic key). ---------- */
+/* ---------- v74: voice-to-prompt — two paths, same mic button.
+   Path 1 (instant): Web Speech API where SpeechRecognition exists (Chrome/Edge) —
+   live interim results, free, in-browser, no keys, no network.
+   Path 2 (Quest-proof): where SpeechRecognition is missing (Quest browser, Firefox,
+   Safari), the button records the mic with MediaRecorder and transcribes the clip
+   with Groq Whisper (free tier, uses the saved Groq key in localStorage slot
+   ff_key_groq — the same key the Groq provider uses; never hardcoded, never logged).
+   Either way the text goes into the prompt box only — never auto-submits, the user
+   edits it, then hits Generate. ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let voiceRec = null, voiceListening = false, voiceBaseText = "", voiceFinalText = "";
+let voiceRecorder = null, voiceStream = null, voiceChunks = [], voiceBusy = false;
 function voiceStatus(msg, isErr){ const el = $("voiceStatus"); if(!el) return; el.textContent = msg || ""; el.classList.toggle("err", !!isErr); }
 function voiceSetListening(on){
   voiceListening = on;
@@ -407,9 +413,98 @@ function voiceSetListening(on){
   b.textContent = on ? "⏹ Stop" : "🎤 Speak";
   b.setAttribute("aria-pressed", on ? "true" : "false");
 }
+function voiceAppendText(t){
+  t = (t || "").trim();
+  if(!t) return;
+  const base = $("prompt").value ? $("prompt").value.replace(/\s+$/, "") + " " : "";
+  $("prompt").value = base + t;
+}
+function voiceGroqKey(){ try{ return (localStorage.getItem("ff_key_groq") || "").trim(); }catch(e){ return ""; } }
+async function voiceTranscribe(blob){
+  const key = voiceGroqKey();
+  const fd = new FormData();
+  fd.append("file", blob, "voice.webm");
+  fd.append("model", "whisper-large-v3-turbo");
+  fd.append("response_format", "json");
+  let r;
+  try{
+    r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key },
+      body: fd
+    });
+  }catch(e){ throw new Error("network:" + e.message); }
+  if(r.status === 401) throw new Error("badkey");
+  if(!r.ok) throw new Error("http" + r.status);
+  const j = await r.json();
+  return (j && j.text) ? j.text : "";
+}
+async function voiceStartRecord(){
+  if(voiceBusy) return;
+  if(!voiceGroqKey()){
+    voiceStatus("Voice on Quest needs your free Groq key — paste it in the provider key field (free at console.groq.com, no card needed), then tap Speak again.", true);
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+    voiceStatus("This browser can't record audio — try Chrome or Edge on a computer.", true);
+    return;
+  }
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }catch(e){
+    if(e && (e.name === "NotAllowedError" || e.name === "SecurityError")) voiceStatus("Mic blocked — allow microphone access, then tap Speak again.", true);
+    else if(e && e.name === "NotFoundError") voiceStatus("No microphone found on this device.", true);
+    else voiceStatus("Couldn't open the mic (" + (e && e.name ? e.name : "error") + "). Try again.", true);
+    return;
+  }
+  let mime = "";
+  if(MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) mime = "audio/webm;codecs=opus";
+  else if(MediaRecorder.isTypeSupported("audio/webm")) mime = "audio/webm";
+  voiceStream = stream;
+  voiceChunks = [];
+  try{
+    voiceRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+  }catch(e){
+    stream.getTracks().forEach(function(t){ t.stop(); });
+    voiceStatus("Couldn't start recording (" + e.message + ").", true);
+    return;
+  }
+  voiceRecorder.ondataavailable = function(ev){ if(ev.data && ev.data.size) voiceChunks.push(ev.data); };
+  voiceRecorder.onstop = function(){
+    const type = (voiceRecorder && voiceRecorder.mimeType) || mime || "audio/webm";
+    const blob = new Blob(voiceChunks, { type: type });
+    if(voiceStream){ voiceStream.getTracks().forEach(function(t){ t.stop(); }); voiceStream = null; }
+    voiceChunks = [];
+    voiceSetListening(false);
+    if(!blob.size){ voiceStatus("Didn't catch that — tap Speak and try again.", true); return; }
+    voiceBusy = true;
+    voiceStatus("Transcribing…");
+    voiceTranscribe(blob).then(function(text){
+      voiceBusy = false;
+      if(text){ voiceAppendText(text); voiceStatus("Heard it — edit the text if you like, then hit Generate."); }
+      else voiceStatus("Didn't catch that — tap Speak and try again.", true);
+    }).catch(function(err){
+      voiceBusy = false;
+      const m = String(err && err.message || err);
+      if(m === "badkey") voiceStatus("Groq key rejected — check the saved Groq key.", true);
+      else if(m.indexOf("network:") === 0) voiceStatus("Transcription failed (network). Try again.", true);
+      else voiceStatus("Transcription failed (" + m + "). Try again.", true);
+    });
+  };
+  voiceRecorder.start();
+  voiceSetListening(true);
+  voiceStatus("Recording… speak your game idea, tap Stop when done.");
+}
 function voiceToggle(){
-  if(!SpeechRecognition){ voiceStatus("This browser has no built-in voice input — on Quest, tap the prompt box and use the mic key on the Quest keyboard to dictate instead. On a computer, Chrome or Edge works.", true); return; }
-  if(voiceListening){ try{ voiceRec.stop(); }catch(e){} return; }
+  if(voiceBusy){ voiceStatus("Still transcribing — one moment.", true); return; }
+  if(voiceListening){
+    if(voiceRec){ try{ voiceRec.stop(); }catch(e){} return; }
+    if(voiceRecorder && voiceRecorder.state !== "inactive"){ try{ voiceRecorder.stop(); }catch(e){} return; }
+    voiceSetListening(false);
+    return;
+  }
+  if(!SpeechRecognition){ voiceStartRecord(); return; }
   try{
     voiceRec = new SpeechRecognition();
     voiceRec.lang = "en-US";
@@ -442,9 +537,9 @@ function voiceToggle(){
 }
 (function voiceInit(){
   const b = $("micBtn"); if(!b) return;
-  /* Never disable the button: on browsers without speech recognition (Quest browser,
-     Firefox, Safari) a tap explains why and points at the Quest keyboard mic instead. */
-  if(!SpeechRecognition){ b.title = "Voice input needs Chrome or Edge — tap for details"; }
+  /* Never disable the button: where SpeechRecognition is missing (Quest browser,
+     Firefox, Safari) a tap records and transcribes with the saved Groq key instead. */
+  if(!SpeechRecognition){ b.title = "Tap to record — transcribes with your saved Groq key"; }
   b.addEventListener("click", voiceToggle);
   /* If the user types while listening, their edit becomes the new base text. */
   $("prompt").addEventListener("input", function(){ if(voiceListening){ voiceBaseText = $("prompt").value; voiceFinalText = ""; } });
@@ -1118,7 +1213,7 @@ Return the complete manifest:
 // imported/BYOK model when one is cached. A mesh failure never fails
 // the level: a library pull retries once, then the procedural build of
 // the same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v73.1";
+const STAR_SPRITE_VERSION = "v74";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
