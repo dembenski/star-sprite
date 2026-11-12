@@ -201,18 +201,41 @@ Groq games never call Meta.</small></p>
 </div>
 
 <div class="card" style="background:#1c2a1c;border:2px solid #7be0a3">
-<h3>Meshes — procedural + free library models (v69)</h3>
-<p><small>True 3D props for your level. <b>Procedural</b> meshes are built offline from code — free, no key, no internet. <b>Library</b> pulls a real CC0 model from Poly Pizza (public domain, no key) and falls back to the procedural version of the same object if the download fails. Meta/Groq decide <i>what</i> mesh a game needs; the Star provider builds or pulls it. No Hugging Face Spaces anywhere.</small></p>
+<h3>Meshes — every mesh option (v70)</h3>
+<p><small>True 3D props for your level. <b>Procedural</b> meshes are built offline from code — free, no key, no internet. <b>Library</b> sources pull real GLB models: <b>Poly Pizza</b> (CC0, no key) and the AI libraries <b>TripoSR</b>, <b>TripoSG</b>, <b>Hunyuan3D</b>, <b>InstantMesh</b> and <b>Step1X-3D</b> (open models, pre-generated and shipped with the app — a missing kind falls back to procedural). <b>Imported GLB</b> lets you drop in any .glb from any generator. <b>Your key</b> sources generate with Meshy, Tripo or Rodin using a key you paste in below. Meta/Groq decide <i>what</i> mesh a game needs; the Star provider builds, pulls or generates it. No Hugging Face Spaces anywhere.</small></p>
 <div class="row">
 <label>Object <select id="meshKind">
 <option value="tree">Pine tree</option><option value="rock">Rock</option><option value="chest">Treasure chest</option><option value="crystal">Crystal</option><option value="mushroom">Mushroom</option><option value="tower">Tower</option><option value="lamp">Lamp</option><option value="house">House</option><option value="barrel">Barrel</option><option value="pillar">Pillar</option><option value="bush">Bush</option><option value="statue">Statue</option>
 </select></label>
-<label>Source <select id="meshSource"><option value="procedural">Procedural (offline)</option><option value="library">Library (Poly Pizza CC0)</option></select></label>
+<label>Source <select id="meshSource"><optgroup label="Built-in"><option value="procedural">Procedural (offline)</option></optgroup><optgroup label="Free libraries"><option value="polypizza">Poly Pizza library (CC0)</option><option value="triposr">TripoSR library (VAST, MIT)</option><option value="triposg">TripoSG library (VAST, MIT)</option><option value="hunyuan">Hunyuan3D library (Tencent)</option><option value="instantmesh">InstantMesh library (Tencent ARC)</option><option value="step1x3d">Step1X-3D library (StepFun)</option><option value="imported">Imported GLB (your file)</option></optgroup><optgroup label="Your API key"><option value="byok_meshy">Meshy API (your key)</option><option value="byok_tripo">Tripo API (your key)</option><option value="byok_rodin">Rodin API (your key)</option></optgroup></select></label>
 <label>Size <select id="meshSize"><option value="0.8">Small</option><option value="1.2" selected>Normal</option><option value="2">Large</option></select></label>
 <button id="meshAdd">Add mesh to level</button>
 <button class="alt" id="meshTestLib">Test library pull</button>
 </div>
 <div id="meshStatus"><small>No mesh added yet. Generate a True 3D game and the AI will place meshes for you.</small></div>
+<div id="meshSourceStatus"><small></small></div>
+</div>
+
+<div class="card" style="background:#241a2e;border:2px solid #c77bff">
+<h3>Mesh API keys + Import GLB (v70)</h3>
+<p><small>Drop in any <b>.glb</b> file from any generator (Tripo Studio, Meshy web, Hunyuan web, Rodin web, Blender) and use it as a mesh — no key needed. Or paste an API key below and generate straight from Star Sprite. Keys are saved in <b>this browser only</b> (localStorage) and are sent only to that provider's own API — never to anyone else. Keys in a browser can be read by anyone with the device, so use a key you can revoke. Imported models last for this browser session — to keep one forever, add its file to the app's meshes/ folder.</small></p>
+<div class="row">
+<label>Import GLB as <select id="importKind"><option value="tree">Pine tree</option><option value="rock">Rock</option><option value="chest">Treasure chest</option><option value="crystal">Crystal</option><option value="mushroom">Mushroom</option><option value="tower">Tower</option><option value="lamp">Lamp</option><option value="house">House</option><option value="barrel">Barrel</option><option value="pillar">Pillar</option><option value="bush">Bush</option><option value="statue">Statue</option></select></label>
+<input type="file" id="importGlbFile" accept=".glb,model/gltf-binary">
+<button id="importGlbBtn">Import GLB</button>
+</div>
+<div class="row">
+<label>Meshy key <input id="keyMeshy" type="password" size="18" placeholder="msy_… (Pro key)"></label>
+<label>Tripo key <input id="keyTripo" type="password" size="18" placeholder="Tripo API key"></label>
+<label>Rodin key <input id="keyRodin" type="password" size="18" placeholder="Hyper3D API key"></label>
+<button id="saveKeysBtn">Save keys</button>
+</div>
+<div class="row">
+<label>Generate with <select id="byokProvider"><option value="meshy">Meshy</option><option value="tripo">Tripo</option><option value="rodin">Rodin</option></select></label>
+<input id="byokPrompt" size="40" placeholder="e.g. a treasure chest, low-poly game prop">
+<button id="byokGenBtn">Generate mesh</button>
+</div>
+<div id="byokStatus"><small>No key saved yet. Meshy needs a Pro key (the free plan has no API access). Rodin needs a Business key. Tripo is pay-as-you-go — and Tripo blocks browser downloads, so Tripo generations give you a download link to fetch yourself, then Import GLB. Hunyuan Cloud needs Tencent Cloud signing, so use the Hunyuan web app (20 free a day) and Import GLB.</small></div>
 </div>
 
 <div class="card" style="background:#10202e;border:2px solid #37e0ff">
@@ -623,7 +646,7 @@ function validateManifestAI(s){
     for(let m of s.meshes){
       if(!m.id || !m.name || !MESH_KINDS.includes(m.kind)) return "a mesh is missing id, name or a valid kind";
       if(mids.has(m.id)) return "duplicate mesh id: "+m.id; mids.add(m.id);
-      if(m.source && m.source!=="procedural" && m.source!=="library") return "mesh "+m.name+" source must be procedural or library";
+      if(m.source && m.source!=="library" && !MESH_SOURCES[m.source]) return "mesh "+m.name+" source must be one of: "+Object.keys(MESH_SOURCES).join(", ");
       if(m.colors) for(let k of Object.keys(m.colors)) if(!hexOk(m.colors[k])) return "mesh "+m.name+" colour "+k+" is not a hex colour";
     }
   }
@@ -706,7 +729,7 @@ the same length, "." = transparent), enemy placements by typeId,
 pickups, and NPCs with names, personas, greetings and at least 6 dialogue
 lines each. Map: 14-20 columns, 10-14 rows, every row the SAME length,
 complete # border, exactly one P and one G, only characters # . P G D,
-4-12 enemies inside the walls. Include 2-4 meshes (id, name, kind from tree rock chest crystal mushroom tower lamp house barrel pillar bush statue, source procedural or library, style, size, x, y, colours as #rrggbb hex) placed on open floor. Pick colours that fit the new world -
+4-12 enemies inside the walls. Include 2-4 meshes (id, name, kind from tree rock chest crystal mushroom tower lamp house barrel pillar bush statue, source procedural/polypizza/triposr/triposg/hunyuan/instantmesh/step1x3d/imported/byok, style, size, x, y, colours as #rrggbb hex) placed on open floor. Pick colours that fit the new world -
 do NOT default to pink/dessert unless the remix itself calls for it.
 Original names only, no trademark names. This must be a NEW game,
 not the original with a new title.`;
@@ -985,8 +1008,8 @@ Map requirements:
 - Place enemies using typeIds from enemyTypes.
 - Place 4-12 normal enemies unless difficulty says more.
 Mesh requirements (True 3D props — add 2-4 when the engine is 3d, or when the prompt names a visible object):
-- Each mesh: id, name, kind (one of tree, rock, chest, crystal, mushroom, tower, lamp, house, barrel, pillar, bush, statue), source ("procedural" for a built-in low-poly shape, or "library" for a real free model when the object is a common thing like a tree, chest or barrel), style words, size 0.6-2.0, x, y on open floor, colours as #rrggbb hex.
-- The engine builds procedural meshes offline and pulls library models from free CC0 libraries; it never invents a model URL.
+- Each mesh: id, name, kind (one of tree, rock, chest, crystal, mushroom, tower, lamp, house, barrel, pillar, bush, statue), source (one of: "procedural" for a built-in low-poly shape; "polypizza" for a real CC0 model from Poly Pizza; "triposr", "triposg", "hunyuan", "instantmesh" or "step1x3d" for a pre-generated AI library model; "imported" for a GLB the user dropped in; "byok_meshy", "byok_tripo" or "byok_rodin" for a model generated with the user's own API key), style words, size 0.6-2.0, x, y on open floor, colours as #rrggbb hex. Prefer "polypizza" for common objects (tree, chest, barrel) and "procedural" for anything unusual — the AI libraries are still being filled, and a missing library model falls back to procedural, so never let a mesh choice block the level.
+- The engine builds procedural meshes offline, pulls library models from free libraries, and uses imported or key-generated models when they exist; it never invents a model URL.
 - NPC dialogue must contain at least 6 original lines.
 Return the complete manifest:
 {"title":"Original game title","quest":"Original quest sentence","world":{"theme":"AI-invented theme","mood":"AI-described mood","skyColor":"#08131f","floorColor":"#1b2533","wallColor":"#46617f","secondaryWallColor":"#2c435e","accentColor":"#62d8ff","wallDescription":"Detailed visual description of the walls","floorDescription":"Detailed visual description of the floor","skyDescription":"Detailed visual description of the sky"},"weapon":{"name":"AI-invented weapon name","description":"Detailed visual description","kind":"blaster","primaryColor":"#315a8c","secondaryColor":"#62d8ff","darkColor":"#101d33","crosshair":"circle","projectileColor":"#aef4ff","fireSound":"laser"},"enemyTypes":[{"id":"enemy_1","name":"AI-invented enemy name","description":"Detailed appearance description","role":"chaser","hp":3,"speed":0.55,"damage":10,"size":1.0,"primaryColor":"#b84a5a","secondaryColor":"#f2c14e","darkColor":"#20131f","eyeColor":"#ffffff","shape":"mech","imagePrompt":"Full detailed sprite-generation prompt","pixelPalette":{"K":"#171321","B":"#b84a5a","A":"#f2c14e","W":"#ffffff","E":"#171321"},"pixelRows":["......KKKK......","....KKBBBBKK...."]}],"map":["################","#P.............#","#..............#","##############G#","################"],"enemies":[{"x":4,"y":2,"typeId":"enemy_1"}],"pickups":[{"x":5,"y":3,"name":"AI-invented pickup","kind":"health"}],"npcs":[{"id":"npc_1","name":"AI-invented NPC name","persona":"AI-invented personality","greeting":"AI-written greeting","dialogue":["AI-written dialogue line 1","AI-written dialogue line 2","AI-written dialogue line 3"],"x":2,"y":2}],"meshes":[{"id":"m1","name":"Pine Tree","kind":"tree","source":"procedural","style":"snowy pine","size":1.2,"x":5,"y":7,"colors":{"trunk":"#7a5230","foliage":"#2f7d4f"}}]}`;
@@ -1007,22 +1030,32 @@ Return the complete manifest:
 }
 // ---------- v69 meshes: procedural + free library models ----------
 // Two mesh routes, no Hugging Face Spaces anywhere:
+// Mesh system (v70) — every mesh option Star Sprite knows:
 //  1. PROCEDURAL (Star provider, offline): low-poly meshes built from the
-//     engine's own box primitives — trees, rocks, buildings, props and
-//     simple characters assembled from parts. Free, no key, works offline.
-//  2. LIBRARY PULL: CC0 GLB models from Poly Pizza (static.poly.pizza,
-//     CORS *, no key). Fetched at runtime, validated as glTF v2, parsed
-//     with the minimal parser below, cached in memory. No Sketchfab
-//     (its download API needs a token), no Kenney (ZIPs only), no
-//     Hugging Face Spaces.
+//     engine's own box primitives. Free, no key, works offline.
+//  2. LIBRARY PULLS: real GLB models fetched at runtime and parsed with
+//     the minimal parser below. Poly Pizza (static.poly.pizza, CORS *,
+//     CC0, no key) plus the AI libraries shipped with the app under
+//     meshes/ (TripoSR, TripoSG, Hunyuan3D, InstantMesh, Step1X-3D —
+//     open models, pre-generated offline, MIT/Apache/Tencent licences).
+//     No Sketchfab (download API needs a token), no Kenney (ZIPs only),
+//     no Hugging Face Spaces.
+//  3. IMPORTED GLB: any .glb the user drops in (from Tripo Studio, Meshy
+//     web, Hunyuan web, Rodin web, Blender). Session-only unless the file
+//     is added to meshes/.
+//  4. BYOK (bring your own key): Meshy, Tripo and Rodin generate live
+//     from the browser with the user's own key (localStorage only). Tripo
+//     blocks browser downloads (its own CORS rule), so Tripo jobs end
+//     with a download link + Import GLB. Hunyuan Cloud needs Tencent
+//     signing, so it is import-only for now.
 // How the AIs work together: Meta/Groq (the LLM providers) decide WHAT
 // mesh is needed — they emit a mesh spec (object, kind, style, size,
-// colours, source: procedural vs library) in the manifest. The Star
-// offline provider executes it: procedural build first, library pull
-// when a matching free model exists. A mesh failure never fails the
-// level: a library pull retries once, then the procedural build of the
-// same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v69";
+// colours, source) in the manifest. The Star offline provider executes
+// it: procedural build first, library pull when a matching model exists,
+// imported/BYOK model when one is cached. A mesh failure never fails
+// the level: a library pull retries once, then the procedural build of
+// the same kind renders instead. No provider switch, ever.
+const STAR_SPRITE_VERSION = "v70";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
@@ -1041,6 +1074,51 @@ const MESH_LIBRARY = {
   bush:    {name:"Bush",          creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/6bbb833e-26cb-4bf9-ae67-a31b98e30bd9.glb", bytes:131172},
   statue:  {name:"Horse Statue",  creator:"Quaternius", licence:"CC0", url:"https://static.poly.pizza/55b0aa03-543c-439d-a7d7-f0ac4c23578f.glb", bytes:119712}
 };
+// v70 — every mesh source Star Sprite knows. kind: "procedural" (built
+// from code), "library" (a GLB file pulled from a URL), "byok" (generated
+// live with the user's own API key). Library sources fall back to the
+// procedural build of the same kind when the file is missing — a mesh
+// failure never fails the level.
+const MESH_SOURCES = {
+  procedural:{label:"Procedural (offline)", kind:"procedural", vendor:"Star Sprite", licence:"Built-in", note:"Free, no key, no internet."},
+  polypizza:{label:"Poly Pizza library (CC0)", kind:"library", vendor:"Poly Pizza", licence:"CC0", note:"12 real CC0 models, no key."},
+  triposr:{label:"TripoSR library", kind:"library", vendor:"VAST", licence:"MIT", base:"meshes/triposr/", note:"AI image-to-3D (TripoSR, MIT), pre-generated offline. Filling now."},
+  triposg:{label:"TripoSG library", kind:"library", vendor:"VAST", licence:"MIT", base:"meshes/triposg/", note:"AI image-to-3D (TripoSG, MIT), GLB out. Pre-generate on a GPU machine."},
+  hunyuan:{label:"Hunyuan3D library", kind:"library", vendor:"Tencent", licence:"Tencent Community Licence", base:"meshes/hunyuan3d/", note:"Best textured quality. Pre-generate on a GPU machine. Licence excludes EU/UK/South Korea."},
+  instantmesh:{label:"InstantMesh library", kind:"library", vendor:"Tencent ARC", licence:"Apache-2.0", base:"meshes/instantmesh/", note:"Textured image-to-3D. Pre-generate on a GPU machine."},
+  step1x3d:{label:"Step1X-3D library", kind:"library", vendor:"StepFun", licence:"Apache-2.0", base:"meshes/step1x3d/", note:"Only open Chinese text-to-3D. Needs 27-29GB VRAM to pre-generate."},
+  imported:{label:"Imported GLB (your file)", kind:"library", vendor:"You", licence:"Your file", note:"Any .glb you drop in. Session-only unless added to meshes/."},
+  byok_meshy:{label:"Meshy API (your key)", kind:"byok", vendor:"Meshy", licence:"Pro key required", note:"Full in-browser flow. Free plan has no API access."},
+  byok_tripo:{label:"Tripo API (your key)", kind:"byok", vendor:"VAST", licence:"Pay-as-you-go", note:"Submits the job; Tripo blocks browser downloads, so you fetch the GLB and import it."},
+  byok_rodin:{label:"Rodin API (your key)", kind:"byok", vendor:"Hyper3D", licence:"Business key required", note:"Full in-browser flow if Rodin allows browser calls — the app reports the real result."}
+};
+// Pre-generated AI model libraries, shipped with the app. Each entry is
+// kind -> {url, bytes}. Empty until the pre-generation run fills it —
+// missing kinds fall back to procedural, so an empty library is safe.
+const MESH_MODEL_LIBS = {triposr:{}, triposg:{}, hunyuan:{}, instantmesh:{}, step1x3d:{}};
+function meshSourceDef(s){ return MESH_SOURCES[s] || MESH_SOURCES.procedural; }
+function meshLibraryUrl(source, kind){
+  if(source==="polypizza"){ let e=MESH_LIBRARY[kind]; return e ? e.url : null; }
+  let lib=MESH_MODEL_LIBS[source];
+  if(lib && lib[kind]) return lib[kind].url;
+  let def=MESH_SOURCES[source];
+  if(def && def.base) return def.base+kind+".glb";
+  return null;
+}
+function meshLibraryReadyCount(source){
+  if(source==="polypizza") return Object.keys(MESH_LIBRARY).length;
+  let lib=MESH_MODEL_LIBS[source]; return lib ? Object.keys(lib).length : 0;
+}
+function renderMeshSourceStatus(){
+  let el=$("meshSourceStatus"); if(!el) return;
+  let parts=[];
+  for(let s of ["polypizza","triposr","triposg","hunyuan","instantmesh","step1x3d"]){
+    let def=MESH_SOURCES[s];
+    parts.push(def.label.split(" library")[0]+": "+meshLibraryReadyCount(s)+"/12 ready");
+  }
+  parts.push("Imported: session-only");
+  el.innerHTML="<small>"+parts.join(" · ")+"</small>";
+}
 const MESH_MAX_GLB_BYTES = 8*1024*1024;
 // Procedural builders: each returns parts [{dx,dy,dz,sx,sy,sz,c}].
 // dy is the BOTTOM of the part (ground = 0). All boxes, axis-aligned,
@@ -1177,7 +1255,7 @@ function sanitizeMeshSpec(m, w, h){
     name: String(m.name||m.kind).slice(0,40),
     kind: m.kind,
     variant: (m.variant==="leafy"||m.variant==="pine") ? m.variant : "pine",
-    source: m.source==="library" ? "library" : "procedural",
+    source: (m.source==="library" ? "polypizza" : (MESH_SOURCES[m.source] ? m.source : "procedural")),
     style: String(m.style||"").slice(0,80),
     size: Math.max(.4, Math.min(3, +m.size||1)),
     x: Math.max(1, Math.min(w-2, Math.floor(m.x||1))),
@@ -1214,7 +1292,7 @@ function starThemeMeshes(theme, map, prompt){
     let cell = floors.splice(Math.floor(rng()*floors.length),1)[0];
     let kind = kinds[i % kinds.length];
     out.push({id:"m"+(i+1), name:kind.charAt(0).toUpperCase()+kind.slice(1), kind,
-      source:(i===0 && MESH_LIBRARY[kind]) ? "library" : "procedural",
+      source:(i===0 && MESH_LIBRARY[kind]) ? "polypizza" : "procedural",
       style:"", size:+(0.9+rng()*0.7).toFixed(2), x:cell.x, y:cell.y, colors:{}, seed:1000+i});
   }
   return out;
@@ -1224,8 +1302,8 @@ function starThemeMeshes(theme, map, prompt){
 // TRS matrices, normalises the model to a unit box (min-Y on the ground).
 // No textures, no skins, no animations — flat-colour props only, which is
 // exactly what this engine's shader draws.
-const MESH_GLB_CACHE = new Map(); // kind -> {state, data|promise, tries, error}
-let meshGLBBuffers = {}; // kind -> {buf, tris:[{start,count,color}]}
+const MESH_GLB_CACHE = new Map(); // "source:kind" -> {state, data|promise, tries, error}
+let meshGLBBuffers = {}; // "source:kind" -> {buf, tris:[{start,count,color}]}
 function glbReadAccessor(json, bin, ai, out){
   let a = json.accessors[ai];
   let bv = json.bufferViews[a.bufferView];
@@ -1329,36 +1407,47 @@ function parseGLB(buf){
   for(let t of tris){ for(let i=0;i<t.pos.length;i+=3){ t.pos[i]=(t.pos[i]-cx)*sc; t.pos[i+1]=(t.pos[i+1]-mn[1])*sc; t.pos[i+2]=(t.pos[i+2]-cz)*sc; } }
   return {tris, triCount: total, vertCount: total*3};
 }
-// Fetch a library GLB for a kind, with ONE retry on failure, then it
-// stays failed for the session and the procedural build renders instead.
-// A mesh failure never fails the level.
-function fetchMeshGLB(kind){
-  let entry = MESH_LIBRARY[kind];
-  if(!entry) return Promise.reject(new Error("No free library model for kind "+kind));
-  let rec = MESH_GLB_CACHE.get(kind);
+// Fetch a library GLB for a kind + source, with ONE retry on failure,
+// then it stays failed for the session and the procedural build renders
+// instead. A mesh failure never fails the level. Imported and BYOK models
+// are already in the cache — there is nothing to fetch for them.
+function fetchMeshGLB(kind, source){
+  source = source || "polypizza";
+  let key = source+":"+kind;
+  let def = MESH_SOURCES[source];
+  if(!def) return Promise.reject(new Error("Unknown mesh source "+source));
+  if(def.kind==="byok" || source==="imported"){
+    let rec0 = MESH_GLB_CACHE.get(key);
+    if(rec0 && rec0.state==="ready") return Promise.resolve(rec0.data);
+    return Promise.reject(new Error("No "+def.label+" model cached for "+kind+" yet — generate or import one first."));
+  }
+  let url = meshLibraryUrl(source, kind);
+  if(!url) return Promise.reject(new Error("No free library model for kind "+kind+" from "+source));
+  let rec = MESH_GLB_CACHE.get(key);
   if(rec && rec.state==="ready") return Promise.resolve(rec.data);
   if(rec && rec.state==="loading") return rec.promise;
   if(rec && rec.state==="failed") return Promise.reject(new Error(rec.error||"Library pull failed"));
   let attempt = (n)=>{
-    return fetch(entry.url, {mode:"cors"}).then(async r=>{
-      if(!r.ok) throw new Error("Library fetch HTTP "+r.status);
+    return fetch(url, {mode:"cors"}).then(async r=>{
+      if(!r.ok) throw new Error("Library fetch HTTP "+r.status+" ("+url+")");
       let data = parseGLB(await r.arrayBuffer());
-      MESH_GLB_CACHE.set(kind, {state:"ready", data, tries:n});
+      MESH_GLB_CACHE.set(key, {state:"ready", data, tries:n});
       return data;
     }).catch(e=>{
       if(n < 2) return new Promise(res=>setTimeout(()=>res(attempt(n+1)), 1500));
-      MESH_GLB_CACHE.set(kind, {state:"failed", error:e.message, tries:n});
+      MESH_GLB_CACHE.set(key, {state:"failed", error:e.message, tries:n});
       throw e;
     });
   };
   let p = attempt(1);
-  MESH_GLB_CACHE.set(kind, {state:"loading", promise:p, tries:1});
+  MESH_GLB_CACHE.set(key, {state:"loading", promise:p, tries:1});
   return p;
 }
-function drawGLBMesh(mvp, kind){
-  let rec = MESH_GLB_CACHE.get(kind);
+function drawGLBMesh(mvp, kind, source){
+  let key = (source||"polypizza")+":"+kind;
+  let rec = MESH_GLB_CACHE.get(key);
   if(!rec || rec.state!=="ready") return false;
-  let g = meshGLBBuffers[kind];
+  let g = meshGLBBuffers[key];
   if(!g){
     try{
       let interleaved = [];
@@ -1371,7 +1460,7 @@ function drawGLBMesh(mvp, kind){
       let buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(interleaved), gl.STATIC_DRAW);
-      g = meshGLBBuffers[kind] = {buf, tris};
+      g = meshGLBBuffers[key] = {buf, tris};
     }catch(e){ return false; }
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, g.buf);
@@ -1415,16 +1504,171 @@ let _ma=$("meshAdd"); if(_ma)_ma.onclick=()=>{
     : '<span class="err">No level loaded yet — Generate or Play first.</span>';
 };
 let _mt=$("meshTestLib"); if(_mt)_mt.onclick=async()=>{
-  let kind=$("meshKind").value, entry=MESH_LIBRARY[kind];
-  if($("meshStatus")) $("meshStatus").textContent="Pulling "+(entry?entry.name:kind)+" from Poly Pizza…";
+  let kind=$("meshKind").value, source=$("meshSource").value, def=meshSourceDef(source);
+  if(def.kind==="procedural"){
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="ok">Procedural '+kind+' is built from code — always works offline. Pick a library source to test a pull.</span>';
+    return;
+  }
+  if(def.kind==="byok"){
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="err">BYOK sources need a key + a generation first — use the keys card below, then the model is cached for this kind.</span>';
+    return;
+  }
+  if($("meshStatus")) $("meshStatus").textContent="Pulling "+kind+" from "+def.label+"…";
   try{
-    let d=await fetchMeshGLB(kind);
-    if($("meshStatus")) $("meshStatus").innerHTML='<span class="ok">Library pull OK: '+entry.name+' by '+entry.creator+' (CC0) — '+entry.bytes+' bytes, '+d.triCount+' triangles. Add it as a Library mesh and play in True 3D.</span>';
+    let d=await fetchMeshGLB(kind, source);
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="ok">Pull OK: '+def.label+' — '+kind+', '+d.triCount+' triangles. Add it as a '+def.label+' mesh and play in True 3D.</span>';
     draw();
   }catch(e){
-    if($("meshStatus")) $("meshStatus").innerHTML='<span class="err">Library pull failed: '+e.message+' — the procedural '+kind+' still works offline.</span>';
+    if($("meshStatus")) $("meshStatus").innerHTML='<span class="err">Pull failed: '+e.message+' — the procedural '+kind+' still works offline.</span>';
   }
 };
+// ---------- v70: GLB import + bring-your-own-key mesh generation ----------
+// Keys live in localStorage in THIS browser only and are sent only to the
+// provider's own API. The app never uploads a key anywhere else. Every
+// provider call reports its real result — a CORS block or a bad key shows
+// up as an honest error, never a silent fallback to a fake model.
+function byokKey(p){ try{ return localStorage.getItem("ff_key_"+p)||""; }catch(e){ return ""; } }
+function byokSaveKeys(){
+  try{
+    localStorage.setItem("ff_key_meshy", $("keyMeshy").value.trim());
+    localStorage.setItem("ff_key_tripo", $("keyTripo").value.trim());
+    localStorage.setItem("ff_key_rodin", $("keyRodin").value.trim());
+  }catch(e){}
+}
+function byokFillKeyFields(){
+  if($("keyMeshy")) $("keyMeshy").value = byokKey("meshy");
+  if($("keyTripo")) $("keyTripo").value = byokKey("tripo");
+  if($("keyRodin")) $("keyRodin").value = byokKey("rodin");
+}
+function byokStatus(html){ if($("byokStatus")) $("byokStatus").innerHTML = html; }
+function byokCacheGLB(provider, kind, data){
+  let key = "byok_"+provider+":"+kind;
+  MESH_GLB_CACHE.set(key, {state:"ready", data, tries:1});
+  return key;
+}
+async function importGLBFile(file, kind){
+  if(!file) throw new Error("Choose a .glb file first.");
+  if(file.size > MESH_MAX_GLB_BYTES) throw new Error("That file is "+Math.round(file.size/1048576)+" MB — the cap is 8 MB.");
+  let buf = await file.arrayBuffer();
+  let data = parseGLB(buf);
+  MESH_GLB_CACHE.set("imported:"+kind, {state:"ready", data, tries:1});
+  return data;
+}
+let _igb=$("importGlbBtn"); if(_igb)_igb.onclick=async()=>{
+  let kind=$("importKind").value, f=$("importGlbFile").files[0];
+  byokStatus("Importing "+(f?f.name:kind)+"…");
+  try{
+    let d=await importGLBFile(f, kind);
+    byokStatus('<span class="ok">Imported '+kind+' — '+d.triCount+' triangles. It works in this browser session: pick "Imported GLB (your file)" as the source and add it to your level. To keep it forever, add the file to the app\'s meshes/ folder.</span>');
+    renderMeshSourceStatus(); draw();
+  }catch(e){ byokStatus('<span class="err">Import failed: '+e.message+'</span>'); }
+};
+let _sk=$("saveKeysBtn"); if(_sk)_sk.onclick=()=>{ byokSaveKeys(); byokStatus('<span class="ok">Keys saved in this browser only.</span>'); };
+async function byokPoll(getTask, tries, delayMs){
+  for(let i=0;i<tries;i++){
+    let raw = await getTask();
+    let t = (raw && raw.data) || raw || {};
+    let st = String(t.status||t.state||"").toUpperCase();
+    let jobs = t.jobs || t.tasks;
+    if(Array.isArray(jobs) && jobs.length && jobs.every(j=>String(j.status||j.state||"").toUpperCase()==="DONE")) return t;
+    if(st==="SUCCEEDED"||st==="SUCCESS"||st==="DONE"||st==="COMPLETED") return t;
+    if(st==="FAILED"||st==="FAIL"||st==="ERROR"||st==="CANCELLED"||st==="CANCELED") throw new Error("Provider said the job "+st.toLowerCase()+(t.error?": "+t.error:""));
+    await new Promise(r=>setTimeout(r, delayMs));
+  }
+  throw new Error("Still running after "+tries+" checks — the job may finish on the provider's side; try again in a minute.");
+}
+async function byokMeshy(kind, prompt){
+  let key=byokKey("meshy");
+  if(!key) throw new Error("Paste your Meshy API key first (Pro plan — the free plan has no API access).");
+  let r = await fetch("https://api.meshy.ai/openapi/v2/text-to-3d", {method:"POST", headers:{"Authorization":"Bearer "+key, "Content-Type":"application/json"}, body:JSON.stringify({mode:"preview", prompt:prompt, ai_model:"meshy-6"})});
+  if(!r.ok) throw new Error("Meshy rejected the request (HTTP "+r.status+"): "+(await r.text()).slice(0,200));
+  let j = await r.json(); let id = j.result || j.task_id || j.id;
+  if(!id) throw new Error("Meshy did not return a task id.");
+  let t = await byokPoll(async()=>{
+    let pr = await fetch("https://api.meshy.ai/openapi/v2/text-to-3d/"+encodeURIComponent(id), {headers:{"Authorization":"Bearer "+key}});
+    if(!pr.ok) throw new Error("Meshy status check failed (HTTP "+pr.status+")");
+    return await pr.json();
+  }, 60, 5000);
+  let url = t.model_urls && (t.model_urls.glb || t.model_urls.gltf);
+  if(!url) throw new Error("Meshy finished but gave no GLB link.");
+  let gr = await fetch(url, {mode:"cors"});
+  if(!gr.ok) throw new Error("Meshy finished but the GLB download failed (HTTP "+gr.status+") — open the link yourself: "+url);
+  let data = parseGLB(await gr.arrayBuffer());
+  byokCacheGLB("meshy", kind, data);
+  return {data, url};
+}
+async function byokTripo(kind, prompt){
+  let key=byokKey("tripo");
+  if(!key) throw new Error("Paste your Tripo API key first (pay-as-you-go, from the Tripo Console).");
+  let r = await fetch("https://openapi.tripo3d.ai/v3/generation/text-to-model", {method:"POST", headers:{"Authorization":"Bearer "+key, "Content-Type":"application/json"}, body:JSON.stringify({type:"text_to_model", prompt:prompt})});
+  if(!r.ok) throw new Error("Tripo rejected the request (HTTP "+r.status+"): "+(await r.text()).slice(0,300));
+  let j = await r.json(); let id = j.data && (j.data.task_id || j.data.taskId) || j.task_id || j.taskId;
+  if(!id) throw new Error("Tripo did not return a task id. Full reply: "+JSON.stringify(j).slice(0,200));
+  let t = await byokPoll(async()=>{
+    let pr = await fetch("https://openapi.tripo3d.ai/v3/tasks/"+encodeURIComponent(id), {headers:{"Authorization":"Bearer "+key}});
+    if(!pr.ok) throw new Error("Tripo status check failed (HTTP "+pr.status+")");
+    return await pr.json();
+  }, 60, 5000);
+  let d = t.data || t;
+  let url = d.model_url || d.modelUrl || (d.output && d.output.model_url) || (d.result && d.result.model_url);
+  if(!url) throw new Error("Tripo finished but gave no model link. Task "+id+" — check it in the Tripo Console.");
+  try{
+    let gr = await fetch(url, {mode:"cors"});
+    if(!gr.ok) throw new Error("HTTP "+gr.status);
+    let data = parseGLB(await gr.arrayBuffer());
+    byokCacheGLB("tripo", kind, data);
+    return {data, url};
+  }catch(e){
+    throw new Error("Tripo finished (task "+id+") but the browser could not download the GLB — Tripo blocks browser downloads (their own CORS rule). Download it here, then use Import GLB: "+url);
+  }
+}
+async function byokRodin(kind, prompt){
+  let key=byokKey("rodin");
+  if(!key) throw new Error("Paste your Rodin API key first (Business plan — Free/Creator plans cannot call the API).");
+  let fd = new FormData();
+  fd.append("prompt", prompt); fd.append("tier", "Gen-2.5");
+  let r = await fetch("https://api.hyper3d.com/api/v2/rodin", {method:"POST", headers:{"Authorization":"Bearer "+key}, body:fd});
+  if(!r.ok) throw new Error("Rodin rejected the request (HTTP "+r.status+"): "+(await r.text()).slice(0,300));
+  let j = await r.json(); let id = j.task_uuid || j.uuid || j.task_id || (j.data && j.data.task_uuid);
+  if(!id) throw new Error("Rodin did not return a task id. Full reply: "+JSON.stringify(j).slice(0,200));
+  let t = await byokPoll(async()=>{
+    let pr = await fetch("https://api.hyper3d.com/api/v2/status/"+encodeURIComponent(id), {headers:{"Authorization":"Bearer "+key}});
+    if(!pr.ok){
+      let pr2 = await fetch("https://api.hyper3d.com/api/v2/status", {method:"POST", headers:{"Authorization":"Bearer "+key, "Content-Type":"application/json"}, body:JSON.stringify({task_uuid:id})});
+      if(!pr2.ok) throw new Error("Rodin status check failed (HTTP "+pr.status+")");
+      return await pr2.json();
+    }
+    return await pr.json();
+  }, 60, 5000);
+  let d = t.data || t;
+  let url = d.download_url || d.url || (d.files && d.files[0] && (d.files[0].url || d.files[0])) || (d.output && d.output.url);
+  if(!url){
+    let dr = await fetch("https://api.hyper3d.com/api/v2/download", {method:"POST", headers:{"Authorization":"Bearer "+key, "Content-Type":"application/json"}, body:JSON.stringify({task_uuid:id})});
+    if(!dr.ok) throw new Error("Rodin finished but the download step failed (HTTP "+dr.status+") — task "+id+", check the Hyper3D workspace.");
+    let dj = await dr.json();
+    url = dj.url || dj.download_url || (dj.files && dj.files[0] && (dj.files[0].url || dj.files[0]));
+  }
+  if(!url) throw new Error("Rodin finished but gave no download link — task "+id+", check the Hyper3D workspace.");
+  let gr = await fetch(url, {mode:"cors"});
+  if(!gr.ok) throw new Error("Rodin finished but the GLB download failed (HTTP "+gr.status+") — try the link directly: "+url);
+  let data = parseGLB(await gr.arrayBuffer());
+  byokCacheGLB("rodin", kind, data);
+  return {data, url};
+}
+let _bg=$("byokGenBtn"); if(_bg)_bg.onclick=async()=>{
+  let provider=$("byokProvider").value, kind=$("meshKind").value;
+  let prompt=($("byokPrompt").value||"").trim() || ("a "+kind+", low-poly game prop, single object, front view");
+  byokStatus("Generating a "+kind+" with "+provider+"… this can take a couple of minutes. Keep this tab open.");
+  try{
+    let out = provider==="meshy" ? await byokMeshy(kind, prompt) : provider==="tripo" ? await byokTripo(kind, prompt) : await byokRodin(kind, prompt);
+    let p = placeMeshProp(kind, "byok_"+provider, 1.2);
+    byokStatus('<span class="ok">'+provider+" finished: "+kind+" — "+out.data.triCount+' triangles. Added to your level as a '+provider+' mesh.</span>');
+    draw();
+  }catch(e){ byokStatus('<span class="err">'+e.message+'</span>'); }
+};
+byokFillKeyFields();
+renderMeshSourceStatus();
+
 // ---------- art / audio ----------
 let audioCtx=null;function beep(f,d=.08,type="square"){if(!$("soundOn").checked)return;try{audioCtx=audioCtx||new AudioContext();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
 let musicTimer=null;let musicPreview=false;
@@ -2521,11 +2765,13 @@ function draw3D(){
   (spec.props||[]).forEach(p=>{
     let sc=p.scale||1, cx=p.x+.5, cz=p.y+.5;
     if(p.mesh){
-      if(p.mesh.source==="library"){
-        let rec=MESH_GLB_CACHE.get(p.mesh.kind);
-        if(!rec) fetchMeshGLB(p.mesh.kind).catch(()=>{});
+      let def = MESH_SOURCES[p.mesh.source];
+      if(def && def.kind!=="procedural"){
+        let key = p.mesh.source+":"+p.mesh.kind;
+        let rec=MESH_GLB_CACHE.get(key);
+        if(!rec) fetchMeshGLB(p.mesh.kind, p.mesh.source).catch(()=>{});
         else if(rec.state==="ready"){
-          if(drawGLBMesh(mul(vp,model(cx,0,cz,sc,sc,sc)), p.mesh.kind)){ window.__meshStats.library++; return; }
+          if(drawGLBMesh(mul(vp,model(cx,0,cz,sc,sc,sc)), p.mesh.kind, p.mesh.source)){ window.__meshStats.library++; return; }
         }
         // Not ready, failed, or draw failed: procedural fallback, same kind.
       }
