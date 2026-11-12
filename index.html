@@ -36,7 +36,7 @@ body.exported-standalone header,body.exported-standalone #providerCard,body.expo
 @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 #ff2f8688}50%{box-shadow:0 0 0 8px #ff2f8600}}
 #voiceStatus{font-size:13px;min-height:18px}
 </style></head><body>
-<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v73</small></div></header>
+<header><h1>Star Sprite</h1><div>Other tools generate code. This generates games — validated, editable, shareable, in one click.<br><small>An original engine by Michael Dembenski &amp; Bit · Prompt in, playable game out · v73.1</small></div></header>
 <div class="wrap">
 
 <!-- PROVIDER ALWAYS VISIBLE -->
@@ -396,7 +396,7 @@ function setStarter(i){ if(STARTER_PROMPTS[i]) $("prompt").value=STARTER_PROMPTS
 /* ---------- v73: voice-to-prompt — Web Speech API, free, in-browser, no keys, no network.
    Mic button next to the prompt box: tap to listen, tap again to stop. Transcribed text
    goes into the prompt box only — never auto-submits, the user edits it, then hits Generate.
-   Chrome/Edge only; other browsers get the button disabled with a tooltip. ---------- */
+   Chrome/Edge only; other browsers get an inline explanation (Quest: use the keyboard mic key). ---------- */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let voiceRec = null, voiceListening = false, voiceBaseText = "", voiceFinalText = "";
 function voiceStatus(msg, isErr){ const el = $("voiceStatus"); if(!el) return; el.textContent = msg || ""; el.classList.toggle("err", !!isErr); }
@@ -408,7 +408,7 @@ function voiceSetListening(on){
   b.setAttribute("aria-pressed", on ? "true" : "false");
 }
 function voiceToggle(){
-  if(!SpeechRecognition){ voiceStatus("Voice input needs Chrome or Edge — this browser doesn't support it.", true); return; }
+  if(!SpeechRecognition){ voiceStatus("This browser has no built-in voice input — on Quest, tap the prompt box and use the mic key on the Quest keyboard to dictate instead. On a computer, Chrome or Edge works.", true); return; }
   if(voiceListening){ try{ voiceRec.stop(); }catch(e){} return; }
   try{
     voiceRec = new SpeechRecognition();
@@ -442,7 +442,9 @@ function voiceToggle(){
 }
 (function voiceInit(){
   const b = $("micBtn"); if(!b) return;
-  if(!SpeechRecognition){ b.disabled = true; b.title = "Voice input needs Chrome or Edge"; }
+  /* Never disable the button: on browsers without speech recognition (Quest browser,
+     Firefox, Safari) a tap explains why and points at the Quest keyboard mic instead. */
+  if(!SpeechRecognition){ b.title = "Voice input needs Chrome or Edge — tap for details"; }
   b.addEventListener("click", voiceToggle);
   /* If the user types while listening, their edit becomes the new base text. */
   $("prompt").addEventListener("input", function(){ if(voiceListening){ voiceBaseText = $("prompt").value; voiceFinalText = ""; } });
@@ -1116,7 +1118,7 @@ Return the complete manifest:
 // imported/BYOK model when one is cached. A mesh failure never fails
 // the level: a library pull retries once, then the procedural build of
 // the same kind renders instead. No provider switch, ever.
-const STAR_SPRITE_VERSION = "v73";
+const STAR_SPRITE_VERSION = "v73.1";
 const MESH_KINDS = ["tree","rock","chest","crystal","mushroom","tower","lamp","house","barrel","pillar","bush","statue"];
 // Curated CC0 registry — every URL was fetched and verified as a valid
 // glTF v2 file (magic + version + full download) on 2026-11-10.
