@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Sprite on N64 — a real cartridge from an AI game engine</title>
+<meta name="description" content="Star Sprite, the AI game engine, rebuilt in C for the Nintendo 64. The first ROM is baking now — play it in Vapor64 VR, an emulator, or on a real N64 with a flash cart.">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #150b26; color: #f5efff; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; line-height: 1.6; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { text-align: center; margin-bottom: 32px; }
+  .eyebrow { color: #ff8fd1; letter-spacing: .35em; text-transform: uppercase; font-size: 13px; font-weight: 700; }
+  h1 { font-size: clamp(38px, 7vw, 64px); line-height: 1.05; margin: 12px 0 8px; color: #fff; text-shadow: 0 0 24px rgba(255, 143, 209, .45); }
+  h1 .n64 { color: #7dd8ff; }
+  .tagline { font-size: 18px; color: #d9ccff; max-width: 640px; margin: 0 auto; }
+  .badge { display: inline-block; margin-top: 18px; padding: 8px 18px; border-radius: 999px; background: #ffb020; color: #2a1500; font-weight: 800; font-size: 14px; letter-spacing: .04em; }
+  .shot { margin: 28px auto; max-width: 720px; border: 4px solid #ff8fd1; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,.55); }
+  .shot img { display: block; width: 100%; image-rendering: pixelated; }
+  .shot figcaption { background: #241640; padding: 10px 14px; font-size: 13px; color: #cdbcf5; text-align: center; }
+  section { margin-top: 36px; }
+  h2 { font-size: 26px; margin-bottom: 12px; color: #ffd6ef; }
+  p { margin-bottom: 12px; color: #e8e0ff; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+  .card { background: #241640; border: 1px solid #4b2f7a; border-radius: 14px; padding: 16px; }
+  .card h3 { font-size: 17px; margin-bottom: 6px; color: #fff; }
+  .card p { font-size: 14px; color: #cfc2f2; margin: 0; }
+  ul { margin: 0 0 12px 22px; color: #e8e0ff; }
+  li { margin-bottom: 6px; }
+  .download { background: #241640; border: 2px dashed #ff8fd1; border-radius: 16px; padding: 24px; text-align: center; }
+  .download .btn { display: inline-block; margin-top: 12px; padding: 14px 30px; border-radius: 999px; background: #5b5b6e; color: #fff; font-weight: 800; font-size: 16px; text-decoration: none; cursor: not-allowed; }
+  .download small { display: block; margin-top: 10px; color: #b9a8e8; }
+  .keys { font-family: ui-monospace, Consolas, monospace; background: #150b26; border: 1px solid #4b2f7a; border-radius: 8px; padding: 14px 18px; font-size: 14px; color: #bfe9ff; }
+  .keys div { margin: 4px 0; }
+  footer { margin-top: 48px; border-top: 1px solid #4b2f7a; padding-top: 20px; text-align: center; }
+  footer p { color: #b9a8e8; font-size: 14px; }
+  footer .links { margin-top: 10px; font-size: 14px; line-height: 2; }
+  footer a { color: #ff8fd1; text-decoration: none; margin: 0 8px; white-space: nowrap; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Michael Dembenski &amp; Bit present</div>
+    <h1>STAR SPRITE <span class="n64">on N64</span></h1>
+    <p class="tagline">The AI game engine, rebuilt in C for the Nintendo 64. Type a prompt, get a game — and now that game is a real cartridge.</p>
+    <div class="badge">🔨 FIRST ROM BAKING NOW</div>
+  </header>
+
+  <figure class="shot">
+    <img src="star-sprite-n64-screenshot.png" alt="Star Sprite running on N64 — top-down demo level with pink walls, plum floor and the gold goal" width="960" height="672">
+    <figcaption>First picture of the game running: the demo level, top-down — pink walls, plum floor, gold goal. Rendered from the real N64 build.</figcaption>
+  </figure>
+
+  <section>
+    <h2>What is this?</h2>
+    <p><strong>Star Sprite</strong> is an AI game engine: you type a prompt, and it generates a playable game. Every Star Sprite game is really just data — a manifest describing the map, enemies, pickups and goal. So instead of porting one game, we ported the <em>engine</em> to C with Libdragon. One engine port means <strong>every game Star Sprite makes can become a real N64 ROM</strong>.</p>
+    <p>The first ROM is the proof of concept: the demo level from the web engine, running natively on N64 hardware. Play it in VR, in an emulator, or on a real console with a flash cart.</p>
+  </section>
+
+  <section>
+    <h2>How to play</h2>
+    <div class="cards">
+      <div class="card"><h3>🥽 Vapor64 VR</h3><p>The home turf — play the cartridge inside Michael's own N64 emulator for Quest.</p></div>
+      <div class="card"><h3>🖥️ Emulator</h3><p>Mupen64Plus or Ares on PC. Load the .z64 and go.</p></div>
+      <div class="card"><h3>📼 Real N64</h3><p>SummerCart64 flash cart — the ROM runs on original hardware.</p></div>
+      <div class="card"><h3>🌐 Web engine</h3><p>Not into cartridges? The same engine runs in your browser at the Star Sprite site.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Controls (first ROM)</h2>
+    <div class="keys">
+      <div>D-pad / analog stick — move</div>
+      <div>A — shoot</div>
+      <div>Start — restart</div>
+      <div>Reach the gold goal tile to win (+500). Enemies come 3 at a time, just like the web build.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What's in the first ROM — honestly</h2>
+    <ul>
+      <li>The demo level, top-down, with the same map, enemies and pickups as the web game.</li>
+      <li>Stylized sprites (the full pixel-art blitter is next).</li>
+      <li>No audio yet, no NPC dialogue UI, no saves — those come in Phase 1.</li>
+      <li>The raycaster view is Phase 2. The engine is real; the dressing-up is still coming.</li>
+    </ul>
+  </section>
+
+  <section class="download">
+    <h2>Download the ROM</h2>
+    <p>The first ROM is still in the oven — the N64 toolchain is compiling right now. The download button goes live the moment the ROM is built and tested in the emulator.</p>
+    <span class="btn">ROM coming soon</span>
+    <small>Free, forever. 100% original — no Nintendo code, no borrowed game data.</small>
+  </section>
+
+  <footer>
+    <p>📬 Contact me — Michael Dembenski &amp; Bit</p>
+    <div class="links">
+      <a href="https://dembenski.github.io/games/all-games.html">Share My Games</a>
+      <a href="https://www.instagram.com/8bitvapor.builds/">Instagram</a>
+      <a href="https://www.facebook.com/Dembenski.M">Facebook</a>
+      <a href="https://www.youtube.com/@8bitvapor">YouTube</a>
+      <a href="https://www.tiktok.com/@8bitvapor">TikTok</a>
+      <a href="https://8bitvapor.itch.io/">itch.io</a>
+      <a href="https://codepen.io/Michael-Dembenski">CodePen</a>
+      <a href="https://github.com/dembenski">GitHub</a>
+      <a href="https://contra.com/michael_dembenski_vi99zv4l/about">Contra</a>
+      <a href="https://horizon.meta.com/profile/8bitvap0r/">Horizon Worlds</a>
+      <a href="https://dembenski.github.io/games/">Games Hub</a>
+    </div>
+    <p style="margin-top:14px;">Star Sprite engine: <a href="https://dembenski.github.io/star-sprite/">dembenski.github.io/star-sprite/</a> · Vapor64 VR on SideQuest</p>
+  </footer>
+</div>
+</body>
+</html>
